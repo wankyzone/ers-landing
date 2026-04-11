@@ -10,7 +10,6 @@ export default function Home() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-
     if (!email) return;
 
     setLoading(true);
@@ -23,176 +22,160 @@ export default function Home() {
 
     if (error) {
       console.error(error);
-      return;
+      alert("System connection error. Please try again.");
+    } else {
+      setSuccess(true);
+      setEmail("");
     }
-
-    setSuccess(true);
-    setEmail("");
   }
 
   return (
-    <main className="min-h-screen bg-black text-white px-6">
-
-      {/* HERO */}
-      <section className="max-w-5xl mx-auto text-center pt-24">
-
-        <h1 className="text-4xl md:text-6xl font-bold">
-          ERS — On-Demand Errand Execution in Lagos
-        </h1>
-
-        <p className="mt-6 text-gray-300 text-lg">
-          Delegate anything. Verified local runners handle your errands fast, safely, and transparently.
-        </p>
-
-        <p className="mt-3 text-gray-500 text-sm">
-          Built for speed, trust, and everyday execution in Nigeria.
-        </p>
-
-        {/* HERO IMAGE */}
-        <div className="mt-10">
-          <img
-            src="/lagos.jpg"
-            alt="Lagos city"
-            className="rounded-2xl w-full object-cover max-h-[420px] border border-gray-800"
+    <main className="min-h-screen bg-black text-white font-sans selection:bg-green-500 selection:text-black">
+      
+      {/* HERO SECTION */}
+      <section className="relative h-[85vh] flex items-center justify-center overflow-hidden">
+        {/* Background Image Overlay */}
+        <div className="absolute inset-0 z-0">
+          <img 
+            src="/lagos.jpeg" 
+            alt="Lagos Cityscape"
+            className="w-full h-full object-cover opacity-40"
           />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/20 to-black" />
         </div>
 
-        {/* CTA */}
-        <div className="mt-8 flex justify-center gap-4">
-          <a
-            href="#waitlist"
-            className="bg-green-500 px-6 py-3 rounded-xl text-black font-semibold"
-          >
-            Get Early Access
-          </a>
-
-          <a
-            href="https://wa.me/23480661695138?text=Hi%20I%20want%20to%20join%20ERS%20as%20a%20runner"
-            className="border border-gray-600 px-6 py-3 rounded-xl"
-          >
-            Become a Runner
-          </a>
-        </div>
-
-        <p className="text-gray-500 text-sm mt-4">
-          Launching first in Lagos — limited early access
-        </p>
-
-      </section>
-
-      {/* PROBLEM */}
-      <section className="max-w-4xl mx-auto mt-24">
-
-        <h2 className="text-2xl font-semibold">The Problem</h2>
-        <p className="text-gray-400 mt-2">
-          People waste hours daily running errands — queues, traffic, stress, and unreliable help.
-        </p>
-
-        <h2 className="text-2xl font-semibold mt-10">The Solution</h2>
-        <p className="text-gray-400 mt-2">
-          ERS connects you to trusted runners who complete errands on demand — with tracking, speed, and accountability.
-        </p>
-
-      </section>
-
-      {/* HOW IT WORKS */}
-      <section className="max-w-4xl mx-auto mt-24">
-
-        <h2 className="text-2xl font-semibold">How it works</h2>
-
-        <div className="grid md:grid-cols-3 gap-6 mt-6">
-
-          <div className="bg-gray-900 p-6 rounded-xl">
-            1. Request an errand
+        <div className="relative z-10 max-w-4xl mx-auto text-center px-6">
+          <div className="inline-block px-4 py-1.5 mb-6 border border-green-500/30 rounded-full bg-green-500/5 backdrop-blur-md">
+            <span className="text-green-500 text-xs font-bold tracking-widest uppercase italic">
+              Dispatch Engine v1.0
+            </span>
           </div>
+          
+          <h1 className="text-5xl md:text-8xl font-black tracking-tighter mb-6 leading-none">
+            ERS <span className="text-green-500">—</span> SYSTEM
+          </h1>
+          
+          <p className="mt-6 text-xl md:text-2xl text-gray-300 max-w-2xl mx-auto leading-relaxed font-light">
+            High-trust, on-demand errand execution for Lagos. Focus on your life; we’ll handle the logistics.
+          </p>
 
-          <div className="bg-gray-900 p-6 rounded-xl">
-            2. Assigned to a verified runner
-          </div>
-
-          <div className="bg-gray-900 p-6 rounded-xl">
-            3. Completed & tracked in real time
-          </div>
-
-        </div>
-
-      </section>
-
-      {/* WAITLIST */}
-      <section id="waitlist" className="max-w-2xl mx-auto mt-24 text-center">
-
-        <h2 className="text-2xl font-semibold">
-          Get early access
-        </h2>
-
-        <p className="text-gray-400 mt-2">
-          Be among the first users when ERS launches in Lagos.
-        </p>
-
-        {/* SUCCESS STATE */}
-        {success ? (
-          <div className="mt-6 bg-green-900 p-6 rounded-xl">
-
-            <p className="text-green-400 font-semibold">
-              You're on the list 🚀
-            </p>
-
-            <p className="text-gray-400 text-sm mt-2">
-              Share ERS with 3 friends to move higher on the early access list.
-            </p>
-
+          <div className="mt-12 flex flex-col sm:flex-row justify-center gap-5">
             <a
-              href="https://wa.me/23480661695138?text=I%20just%20joined%20ERS%20early%20access%20—%20you%20should%20check%20it%20out"
-              className="block mt-4 text-green-400"
+              href="#waitlist"
+              className="bg-green-500 hover:bg-green-400 transition-all px-10 py-5 rounded-2xl text-black font-bold text-lg shadow-2xl shadow-green-500/20 active:scale-95"
             >
-              Share on WhatsApp
+              Join Waitlist
             </a>
-
-          </div>
-        ) : (
-          <form
-            onSubmit={handleSubmit}
-            className="mt-6 flex flex-col md:flex-row gap-3"
-          >
-
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Enter your email"
-              className="w-full px-4 py-3 rounded-xl bg-gray-900 border border-gray-700"
-            />
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="bg-green-500 px-6 py-3 rounded-xl text-black font-semibold"
+            <a
+              href="https://wa.me/2348061695138?text=Hi%20I%20want%20to%20become%20a%20runner%20on%20ERS"
+              className="backdrop-blur-xl bg-white/5 border border-white/10 px-10 py-5 rounded-2xl font-bold hover:bg-white/10 transition-all active:scale-95"
             >
-              {loading ? "Joining..." : "Join"}
-            </button>
-
-          </form>
-        )}
-
-        {/* WhatsApp fallback */}
-        <a
-          href="https://wa.me/23480661695138?text=Hi%20I%20want%20early%20access%20to%20ERS"
-          className="block mt-4 text-green-400"
-        >
-          Or join via WhatsApp
-        </a>
-
-        <p className="text-gray-500 text-sm mt-4">
-          Early access is now open
-        </p>
-
+              Become a Runner
+            </a>
+          </div>
+        </div>
       </section>
+
+      {/* PRODUCT CORE */}
+      <div className="max-w-6xl mx-auto px-6 py-32 space-y-40">
+        
+        {/* PROBLEM / SOLUTION */}
+        <section className="grid md:grid-cols-2 gap-20 items-center">
+          <div className="space-y-6">
+            <h2 className="text-4xl font-bold tracking-tight">Lagos is fast. <br/><span className="text-green-500">Your errands should be too.</span></h2>
+            <p className="text-gray-400 text-xl leading-relaxed">
+              Traffic and unreliability stall growth. ERS provides the logistics layer needed to bypass the chaos through a network of verified professional runners.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 gap-4">
+            <div className="bg-gray-900/40 border border-white/5 p-8 rounded-3xl backdrop-blur-sm">
+              <h3 className="text-green-500 font-bold uppercase tracking-widest text-xs mb-2">The Problem</h3>
+              <p className="text-gray-300">Wasted hours, zero transparency, and high-friction execution.</p>
+            </div>
+            <div className="bg-green-500/5 border border-green-500/20 p-8 rounded-3xl backdrop-blur-sm">
+              <h3 className="text-green-500 font-bold uppercase tracking-widest text-xs mb-2">The Solution</h3>
+              <p className="text-gray-200 font-medium">Verified runners, real-time dispatch, and guaranteed completion.</p>
+            </div>
+          </div>
+        </section>
+
+        {/* HOW IT WORKS */}
+        <section className="text-center">
+          <h2 className="text-3xl font-bold mb-16">The Operating System</h2>
+          <div className="grid md:grid-cols-3 gap-12 text-left">
+            {[
+              { step: "01", title: "Dispatch", desc: "Submit your errand through our secured encrypted channel." },
+              { step: "02", title: "Verify", desc: "A vetted runner in your immediate zone accepts the task." },
+              { step: "03", title: "Execute", desc: "Real-time tracking from pickup to delivery/completion." }
+            ].map((item) => (
+              <div key={item.step} className="group relative p-8 rounded-3xl border border-white/5 bg-gradient-to-b from-white/[0.02] to-transparent hover:border-green-500/50 transition-all">
+                <span className="text-5xl font-black text-white/5 group-hover:text-green-500/10 transition-colors">{item.step}</span>
+                <h3 className="text-xl font-bold mt-4 mb-2">{item.title}</h3>
+                <p className="text-gray-500 text-sm leading-relaxed">{item.desc}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* WAITLIST / CTA */}
+        <section id="waitlist" className="max-w-3xl mx-auto py-20 px-6">
+          <div className="relative overflow-hidden bg-gradient-to-b from-gray-900 to-black border border-white/10 rounded-[3rem] p-10 md:p-16 text-center">
+            <h2 className="text-3xl md:text-5xl font-bold tracking-tight">
+              Join the <span className="text-green-500 underline decoration-green-500/30 underline-offset-8">Waitlist</span>
+            </h2>
+            <p className="mt-6 text-gray-400 text-lg max-w-md mx-auto">
+              Private beta launch in Lekki and Victoria Island coming soon.
+            </p>
+
+            <div className="mt-10 max-w-md mx-auto">
+              {success ? (
+                <div className="animate-in fade-in zoom-in duration-500 bg-green-500/10 border border-green-500/20 p-8 rounded-2xl">
+                  <div className="text-4xl mb-4">🚀</div>
+                  <h3 className="text-green-500 font-bold text-xl">Request Logged</h3>
+                  <p className="text-gray-400 mt-2 text-sm">System access notification will be sent via email.</p>
+                </div>
+              ) : (
+                <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+                  <input
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Enter email address"
+                    className="w-full bg-white/5 border border-white/10 px-6 py-4 rounded-2xl focus:outline-none focus:border-green-500 transition-all text-white text-center"
+                  />
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full bg-green-500 hover:bg-green-400 disabled:opacity-50 text-black font-bold py-4 rounded-2xl transition-all shadow-xl shadow-green-500/20"
+                  >
+                    {loading ? "Registering..." : "Get Early Access"}
+                  </button>
+                </form>
+              )}
+              <a href="https://wa.me/2348061695138" className="inline-block mt-8 text-sm text-gray-500 hover:text-green-500 transition-colors">
+                Priority WhatsApp Access →
+              </a>
+            </div>
+          </div>
+        </section>
+      </div>
 
       {/* FOOTER */}
-      <footer className="text-center text-gray-500 mt-24 pb-10">
-        ERS — Built for speed, trust, and execution in Lagos.
+      <footer className="max-w-7xl mx-auto px-6 py-16 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-8">
+        <div className="flex items-center gap-3">
+          <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+          <span className="text-sm font-bold tracking-widest uppercase">ERS Engine</span>
+        </div>
+        
+        <p className="text-gray-600 text-[10px] uppercase tracking-widest text-center">
+          © {new Date().getFullYear()} Wanky Software. Built for high-speed execution.
+        </p>
+        
+        <div className="flex gap-8 text-[10px] uppercase tracking-[0.2em] text-gray-500 font-bold">
+          <span className="text-green-500/50">Status: Operational</span>
+        </div>
       </footer>
-
     </main>
   );
 }
