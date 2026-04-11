@@ -37,7 +37,7 @@ export default function Home() {
         {/* Background Image Overlay */}
         <div className="absolute inset-0 z-0">
           <img 
-            src="/lagos.jpeg" 
+            src="/lagos nigeria.jpeg" 
             alt="Lagos Cityscape"
             className="w-full h-full object-cover opacity-40"
           />
