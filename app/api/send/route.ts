@@ -7,7 +7,7 @@ export async function POST(req: Request) {
 
   try {
     await resend.emails.send({
-      from: "ERS <hello@wankysoftware.com>",
+      from: "ERS <onboarding@resend.dev>",
       to: email,
       subject: "You're on the ERS waitlist 🚀",
       html: `<p>You’re now on the ERS early access list.</p>`,
