@@ -22,9 +22,21 @@ type User = {
 
 export default function AdminPage() {
   const [users, setUsers] = useState<User[]>([]);
+  const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [password, setPassword] = useState("");
-  const [authenticated, setAuthenticated] = useState(false);
+
+  const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
+
+  // 🔐 AUTH CHECK
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+    });
+
+    supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+  }, []);
 
   async function fetchUsers() {
     setLoading(true);
@@ -34,8 +46,7 @@ export default function AdminPage() {
       .select("*")
       .order("created_at", { ascending: false });
 
-    if (error) console.error(error);
-    else setUsers(data || []);
+    if (!error) setUsers(data || []);
 
     setLoading(false);
   }
@@ -54,34 +65,35 @@ export default function AdminPage() {
   }
 
   useEffect(() => {
-    if (authenticated) fetchUsers();
-  }, [authenticated]);
+    if (session?.user?.email === adminEmail) {
+      fetchUsers();
+    }
+  }, [session]);
 
-  // 🔐 LOGIN
-  if (!authenticated) {
+  // ❌ NOT LOGGED IN
+  if (!session) {
     return (
       <main className="min-h-screen flex items-center justify-center bg-black text-white">
-        <div className="bg-gray-900 p-8 rounded-xl w-full max-w-sm text-center">
-          <h1 className="text-xl font-bold mb-4">ERS Admin</h1>
+        <button
+          onClick={() =>
+            supabase.auth.signInWithPassword({
+              email: prompt("Email") || "",
+              password: prompt("Password") || "",
+            })
+          }
+          className="bg-green-500 px-6 py-3 rounded text-black font-bold"
+        >
+          Login as Admin
+        </button>
+      </main>
+    );
+  }
 
-          <input
-            type="password"
-            placeholder="Enter password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full px-4 py-3 rounded bg-black border border-gray-700 mb-4"
-          />
-
-          <button
-            onClick={() => {
-              if (password === "ersadmin123") setAuthenticated(true);
-              else alert("Wrong password");
-            }}
-            className="w-full bg-green-500 text-black font-bold py-3 rounded"
-          >
-            Enter
-          </button>
-        </div>
+  // ❌ NOT ADMIN
+  if (session.user.email !== adminEmail) {
+    return (
+      <main className="min-h-screen flex items-center justify-center bg-black text-white">
+        <p>Access Denied</p>
       </main>
     );
   }
@@ -91,59 +103,42 @@ export default function AdminPage() {
   const runners = users.filter((u) => u.role === "runner").length;
   const clients = users.filter((u) => u.role === "client").length;
 
-  // 📈 GROUP BY DATE
+  // 📈 GROWTH
   const growthMap: Record<string, number> = {};
-
   users.forEach((u) => {
-    const date = new Date(u.created_at).toLocaleDateString();
-    growthMap[date] = (growthMap[date] || 0) + 1;
+    const d = new Date(u.created_at).toLocaleDateString();
+    growthMap[d] = (growthMap[d] || 0) + 1;
   });
 
-  const growthData = Object.keys(growthMap).map((date) => ({
-    date,
-    users: growthMap[date],
+  const growthData = Object.keys(growthMap).map((d) => ({
+    date: d,
+    users: growthMap[d],
   }));
 
-  // 🌍 LOCATION STATS
-  const locationMap: Record<string, number> = {};
-
+  // 🏆 REFERRALS
+  const referralMap: Record<string, number> = {};
   users.forEach((u) => {
-    if (!u.location) return;
-    locationMap[u.location] = (locationMap[u.location] || 0) + 1;
+    referralMap[u.referral_code] =
+      (referralMap[u.referral_code] || 0) + 1;
   });
 
-  const topLocations = Object.entries(locationMap)
+  const topReferrals = Object.entries(referralMap)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 5);
-
-  // 📤 EXPORT CSV
-  function exportCSV() {
-    const csv = [
-      ["Email", "Role", "Location", "Referral", "Created"],
-      ...users.map((u) => [
-        u.email,
-        u.role,
-        u.location,
-        u.referral_code,
-        u.created_at,
-      ]),
-    ]
-      .map((row) => row.join(","))
-      .join("\n");
-
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "ers-users.csv";
-    a.click();
-  }
 
   return (
     <main className="min-h-screen bg-black text-white px-6 py-10">
 
-      <h1 className="text-3xl font-bold mb-8">ERS Command Center</h1>
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-3xl font-bold">ERS Command Center</h1>
+
+        <button
+          onClick={() => supabase.auth.signOut()}
+          className="text-red-400 text-sm"
+        >
+          Logout
+        </button>
+      </div>
 
       {/* METRICS */}
       <div className="grid md:grid-cols-3 gap-6 mb-10">
@@ -154,37 +149,40 @@ export default function AdminPage() {
 
       {/* CHART */}
       <div className="bg-gray-900 p-6 rounded-xl mb-10">
-        <h2 className="mb-4 text-lg font-semibold">Growth Trend</h2>
+        <h2 className="mb-4">Growth</h2>
 
         <ResponsiveContainer width="100%" height={250}>
           <LineChart data={growthData}>
-            <XAxis dataKey="date" stroke="#888" />
-            <YAxis stroke="#888" />
+            <XAxis dataKey="date" stroke="#aaa" />
+            <YAxis stroke="#aaa" />
             <Tooltip />
             <Line type="monotone" dataKey="users" stroke="#22c55e" />
           </LineChart>
         </ResponsiveContainer>
       </div>
 
-      {/* LOCATION */}
+      {/* REFERRAL LEADERBOARD */}
       <div className="bg-gray-900 p-6 rounded-xl mb-10">
-        <h2 className="mb-4 text-lg font-semibold">Top Locations</h2>
+        <h2 className="mb-4">Top Referrals</h2>
 
-        {topLocations.map(([loc, count]) => (
-          <div key={loc} className="flex justify-between text-sm py-1">
-            <span>{loc}</span>
+        {topReferrals.map(([code, count]) => (
+          <div key={code} className="flex justify-between py-1">
+            <span>{code}</span>
             <span className="text-green-400">{count}</span>
           </div>
         ))}
       </div>
 
-      {/* EXPORT */}
-      <button
-        onClick={exportCSV}
-        className="mb-6 bg-green-500 px-4 py-2 rounded text-black font-bold"
-      >
-        Export CSV
-      </button>
+      {/* LIVE FEED */}
+      <div className="bg-gray-900 p-6 rounded-xl mb-10">
+        <h2 className="mb-4">Recent Activity</h2>
+
+        {users.slice(0, 5).map((u) => (
+          <div key={u.id} className="text-sm text-gray-400 py-1">
+            {u.email} joined ({u.role})
+          </div>
+        ))}
+      </div>
 
       {/* TABLE */}
       {loading ? (
@@ -221,11 +219,11 @@ export default function AdminPage() {
           </tbody>
         </table>
       )}
+
     </main>
   );
 }
 
-// SMALL CARD COMPONENT
 function Card({ title, value }: { title: string; value: number }) {
   return (
     <div className="bg-gray-900 p-6 rounded-xl">
