@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://ers.wankysoftware.com/sitemap.xml
