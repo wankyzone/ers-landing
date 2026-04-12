@@ -2,214 +2,236 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
 
 type User = {
   id: number;
   email: string;
   referral_code: string;
-  role: string;
-  location: string;
   created_at: string;
 };
 
 export default function AdminPage() {
   const [users, setUsers] = useState<User[]>([]);
-  const [session, setSession] = useState<any>(null);
+  const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const adminEmail = process.env.NEXT_PUBLIC_ADMIN_EMAIL;
+  const [password, setPassword] = useState("");
+  const [authenticated, setAuthenticated] = useState(false);
 
-  // 🔐 AUTH CHECK
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-    });
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState("all");
 
-    supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
-  }, []);
-
+  // FETCH USERS
   async function fetchUsers() {
-    setLoading(true);
-
     const { data, error } = await supabase
       .from("waitlist")
       .select("*")
       .order("created_at", { ascending: false });
 
-    if (!error) setUsers(data || []);
+    if (error) {
+      console.error(error);
+    } else {
+      setUsers(data || []);
+      setFilteredUsers(data || []);
+    }
 
     setLoading(false);
   }
 
+  useEffect(() => {
+    if (authenticated) fetchUsers();
+  }, [authenticated]);
+
+  // FILTER LOGIC
+  useEffect(() => {
+    let result = [...users];
+
+    if (search) {
+      result = result.filter((u) =>
+        u.email.toLowerCase().includes(search.toLowerCase())
+      );
+    }
+
+    if (filter === "today") {
+      const today = new Date().toDateString();
+      result = result.filter(
+        (u) => new Date(u.created_at).toDateString() === today
+      );
+    }
+
+    if (filter === "7days") {
+      const now = new Date();
+      result = result.filter((u) => {
+        const diff =
+          (now.getTime() - new Date(u.created_at).getTime()) /
+          (1000 * 60 * 60 * 24);
+        return diff <= 7;
+      });
+    }
+
+    setFilteredUsers(result);
+  }, [search, filter, users]);
+
+  // DELETE USER
   async function deleteUser(id: number) {
-    if (!confirm("Delete this user?")) return;
+    const confirmDelete = confirm("Delete this user?");
+    if (!confirmDelete) return;
 
     const { error } = await supabase
       .from("waitlist")
       .delete()
       .eq("id", id);
 
-    if (!error) {
-      setUsers(users.filter((u) => u.id !== id));
-    }
-  }
-
-  useEffect(() => {
-    if (session?.user?.email === adminEmail) {
+    if (error) {
+      console.error(error);
+      alert("Delete failed");
+    } else {
       fetchUsers();
     }
-  }, [session]);
+  }
 
-  // ❌ NOT LOGGED IN
-  if (!session) {
+  // EXPORT CSV
+  function exportCSV() {
+    const rows = users.map((u) =>
+      `${u.email},${u.referral_code},${u.created_at}`
+    );
+
+    const csvContent =
+      "data:text/csv;charset=utf-8," +
+      ["Email,Referral Code,Created At", ...rows].join("\n");
+
+    const link = document.createElement("a");
+    link.href = encodeURI(csvContent);
+    link.download = "ers_waitlist.csv";
+    link.click();
+  }
+
+  // METRICS
+  const total = users.length;
+  const today = users.filter(
+    (u) =>
+      new Date(u.created_at).toDateString() ===
+      new Date().toDateString()
+  ).length;
+
+  const last7days = users.filter((u) => {
+    const diff =
+      (new Date().getTime() - new Date(u.created_at).getTime()) /
+      (1000 * 60 * 60 * 24);
+    return diff <= 7;
+  }).length;
+
+  // 🔐 AUTH
+  if (!authenticated) {
     return (
       <main className="min-h-screen flex items-center justify-center bg-black text-white">
-        <button
-          onClick={() =>
-            supabase.auth.signInWithPassword({
-              email: prompt("Email") || "",
-              password: prompt("Password") || "",
-            })
-          }
-          className="bg-green-500 px-6 py-3 rounded text-black font-bold"
-        >
-          Login as Admin
-        </button>
+        <div className="bg-gray-900 p-8 rounded-xl w-full max-w-sm text-center">
+          <h1 className="text-xl font-bold mb-4">ERS Admin Access</h1>
+
+          <input
+            type="password"
+            placeholder="Enter password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full px-4 py-3 rounded bg-black border border-gray-700 mb-4"
+          />
+
+          <button
+            onClick={() => {
+              if (password === "ersadmin123") {
+                setAuthenticated(true);
+              } else {
+                alert("Wrong password");
+              }
+            }}
+            className="w-full bg-green-500 text-black font-bold py-3 rounded"
+          >
+            Access Dashboard
+          </button>
+        </div>
       </main>
     );
   }
-
-  // ❌ NOT ADMIN
-  if (session.user.email !== adminEmail) {
-    return (
-      <main className="min-h-screen flex items-center justify-center bg-black text-white">
-        <p>Access Denied</p>
-      </main>
-    );
-  }
-
-  // 📊 METRICS
-  const totalUsers = users.length;
-  const runners = users.filter((u) => u.role === "runner").length;
-  const clients = users.filter((u) => u.role === "client").length;
-
-  // 📈 GROWTH
-  const growthMap: Record<string, number> = {};
-  users.forEach((u) => {
-    const d = new Date(u.created_at).toLocaleDateString();
-    growthMap[d] = (growthMap[d] || 0) + 1;
-  });
-
-  const growthData = Object.keys(growthMap).map((d) => ({
-    date: d,
-    users: growthMap[d],
-  }));
-
-  // 🏆 REFERRALS
-  const referralMap: Record<string, number> = {};
-  users.forEach((u) => {
-    referralMap[u.referral_code] =
-      (referralMap[u.referral_code] || 0) + 1;
-  });
-
-  const topReferrals = Object.entries(referralMap)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5);
 
   return (
     <main className="min-h-screen bg-black text-white px-6 py-10">
-
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">ERS Command Center</h1>
-
-        <button
-          onClick={() => supabase.auth.signOut()}
-          className="text-red-400 text-sm"
-        >
-          Logout
-        </button>
-      </div>
+      
+      <h1 className="text-3xl font-bold mb-8">ERS Admin V5</h1>
 
       {/* METRICS */}
       <div className="grid md:grid-cols-3 gap-6 mb-10">
-        <Card title="Total Users" value={totalUsers} />
-        <Card title="Clients" value={clients} />
-        <Card title="Runners" value={runners} />
+        <div className="bg-gray-900 p-6 rounded-xl">
+          <p className="text-gray-400">Total Users</p>
+          <h2 className="text-2xl text-green-500 font-bold">{total}</h2>
+        </div>
+
+        <div className="bg-gray-900 p-6 rounded-xl">
+          <p className="text-gray-400">Today</p>
+          <h2 className="text-2xl text-green-500 font-bold">{today}</h2>
+        </div>
+
+        <div className="bg-gray-900 p-6 rounded-xl">
+          <p className="text-gray-400">Last 7 Days</p>
+          <h2 className="text-2xl text-green-500 font-bold">{last7days}</h2>
+        </div>
       </div>
 
-      {/* CHART */}
-      <div className="bg-gray-900 p-6 rounded-xl mb-10">
-        <h2 className="mb-4">Growth</h2>
+      {/* CONTROLS */}
+      <div className="flex flex-col md:flex-row gap-4 mb-6">
+        <input
+          type="text"
+          placeholder="Search email..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="px-4 py-2 rounded bg-gray-900 border border-gray-700"
+        />
 
-        <ResponsiveContainer width="100%" height={250}>
-          <LineChart data={growthData}>
-            <XAxis dataKey="date" stroke="#aaa" />
-            <YAxis stroke="#aaa" />
-            <Tooltip />
-            <Line type="monotone" dataKey="users" stroke="#22c55e" />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
+        <select
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          className="px-4 py-2 rounded bg-gray-900 border border-gray-700"
+        >
+          <option value="all">All</option>
+          <option value="today">Today</option>
+          <option value="7days">Last 7 Days</option>
+        </select>
 
-      {/* REFERRAL LEADERBOARD */}
-      <div className="bg-gray-900 p-6 rounded-xl mb-10">
-        <h2 className="mb-4">Top Referrals</h2>
-
-        {topReferrals.map(([code, count]) => (
-          <div key={code} className="flex justify-between py-1">
-            <span>{code}</span>
-            <span className="text-green-400">{count}</span>
-          </div>
-        ))}
-      </div>
-
-      {/* LIVE FEED */}
-      <div className="bg-gray-900 p-6 rounded-xl mb-10">
-        <h2 className="mb-4">Recent Activity</h2>
-
-        {users.slice(0, 5).map((u) => (
-          <div key={u.id} className="text-sm text-gray-400 py-1">
-            {u.email} joined ({u.role})
-          </div>
-        ))}
+        <button
+          onClick={exportCSV}
+          className="bg-green-500 text-black px-4 py-2 rounded font-bold"
+        >
+          Export CSV
+        </button>
       </div>
 
       {/* TABLE */}
       {loading ? (
         <p>Loading...</p>
       ) : (
-        <table className="w-full text-sm border border-gray-800">
+        <table className="w-full border border-gray-800">
           <thead className="bg-gray-900">
             <tr>
-              <th className="p-3">Email</th>
-              <th className="p-3">Role</th>
-              <th className="p-3">Location</th>
-              <th className="p-3">Referral</th>
+              <th className="p-3 text-left">Email</th>
+              <th className="p-3 text-left">Referral</th>
+              <th className="p-3 text-left">Joined</th>
               <th className="p-3">Action</th>
             </tr>
           </thead>
 
           <tbody>
-            {users.map((u) => (
-              <tr key={u.id} className="border-t border-gray-800">
-                <td className="p-3">{u.email}</td>
-                <td className="p-3">{u.role}</td>
-                <td className="p-3">{u.location}</td>
-                <td className="p-3 text-green-400">{u.referral_code}</td>
+            {filteredUsers.map((user) => (
+              <tr key={user.id} className="border-t border-gray-800">
+                <td className="p-3">{user.email}</td>
+                <td className="p-3 text-green-400">
+                  {user.referral_code}
+                </td>
+                <td className="p-3 text-gray-500">
+                  {new Date(user.created_at).toLocaleString()}
+                </td>
                 <td className="p-3">
                   <button
-                    onClick={() => deleteUser(u.id)}
-                    className="text-red-400 text-xs"
+                    onClick={() => deleteUser(user.id)}
+                    className="text-red-400 hover:underline"
                   >
                     Delete
                   </button>
@@ -219,16 +241,6 @@ export default function AdminPage() {
           </tbody>
         </table>
       )}
-
     </main>
-  );
-}
-
-function Card({ title, value }: { title: string; value: number }) {
-  return (
-    <div className="bg-gray-900 p-6 rounded-xl">
-      <p className="text-gray-400 text-sm">{title}</p>
-      <h2 className="text-2xl font-bold text-green-500">{value}</h2>
-    </div>
   );
 }
