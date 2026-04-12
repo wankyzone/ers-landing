@@ -76,7 +76,7 @@ export default function Home() {
 
         <div className="absolute inset-0 z-0">
           <img
-            src="/lagos.jpeg"
+            src="/lagos nigeria.jpeg"
             alt="Lagos"
             className="w-full h-full object-cover opacity-40"
           />
