@@ -54,7 +54,7 @@ export default function Home() {
         {/* Background Image */}
         <div className="absolute inset-0 z-0">
           <img 
-            src="/lagos.jpg"  // ✅ FIXED NAME (MAKE SURE FILE MATCHES THIS EXACTLY)
+            src="/lagos.jpeg"  // ✅ FIXED NAME (MAKE SURE FILE MATCHES THIS EXACTLY)
             alt="Lagos Cityscape"
             className="w-full h-full object-cover opacity-40"
           />
@@ -88,7 +88,7 @@ export default function Home() {
             </a>
 
             <a
-              href="https://wa.me/23480661695138?text=Hi%20I%20want%20to%20become%20a%20runner%20on%20ERS"
+              href="https://wa.me/2348061695138?text=Hi%20I%20want%20to%20become%20a%20runner%20on%20ERS"
               onClick={() => track("runner_click")}
               className="backdrop-blur-xl bg-white/5 border border-white/10 px-10 py-5 rounded-2xl font-bold hover:bg-white/10 transition-all active:scale-95"
             >
@@ -155,7 +155,7 @@ export default function Home() {
                   </p>
 
                   <a
-                    href={`https://wa.me/23480661695138?text=Join%20ERS:%20${shareLink}`}
+                    href={`https://wa.me/2348061695138?text=Join%20ERS:%20${shareLink}`}
                     onClick={() => track("referral_share")}
                     className="block mt-4 text-green-400"
                   >
@@ -187,7 +187,7 @@ export default function Home() {
               )}
 
               <a
-                href="https://wa.me/23480661695138?text=Hi%20I%20want%20to%20use%20ERS"
+                href="https://wa.me/2348061695138?text=Hi%20I%20want%20to%20use%20ERS"
                 onClick={() => track("whatsapp_click")}
                 className="inline-block mt-8 text-sm text-gray-500 hover:text-green-500"
               >
