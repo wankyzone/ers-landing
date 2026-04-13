@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 function generateCode(email: string) {
@@ -11,255 +11,217 @@ function track(event: string) {
   console.log("ERS_EVENT:", event);
 }
 
-type User = {
-  email: string;
-  referral_code: string;
-  role: string;
-  location: string;
-  created_at: string;
-};
-
 export default function Home() {
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState("client");
-  const [location, setLocation] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [refCode, setRefCode] = useState("");
 
-  const [users, setUsers] = useState<User[]>([]);
-
-  // BROADCAST STATE
-  const [subject, setSubject] = useState("");
-  const [message, setMessage] = useState("");
-  const [sending, setSending] = useState(false);
-
-  // LOAD USERS (METRICS ENGINE)
-  async function loadUsers() {
-    const { data } = await supabase
-      .from("waitlist")
-      .select("*")
-      .order("created_at", { ascending: false });
-
-    setUsers((data as User[]) || []);
-  }
-
-  useEffect(() => {
-    loadUsers();
-  }, []);
-
-  // METRICS
-  const total = users.length;
-
-  const clients = users.filter((u) => u.role === "client").length;
-  const runners = users.filter((u) => u.role === "runner").length;
-
-  const today = users.filter(
-    (u) =>
-      new Date(u.created_at).toDateString() === new Date().toDateString()
-  ).length;
-
-  const last7days = users.filter((u) => {
-    const diff =
-      (Date.now() - new Date(u.created_at).getTime()) /
-      (1000 * 60 * 60 * 24);
-    return diff <= 7;
-  }).length;
-
-  // LEADERBOARD
-  const leaderboard = useMemo(() => {
-    const map: Record<string, number> = {};
-
-    users.forEach((u) => {
-      if (!u.referral_code) return;
-      map[u.referral_code] = (map[u.referral_code] || 0) + 1;
-    });
-
-    return Object.entries(map)
-      .map(([code, count]) => ({ code, count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 5);
-  }, [users]);
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+
+    console.log("🚀 Form submitted with:", email);
 
     if (!email) return;
 
     setLoading(true);
 
     const referral_code = generateCode(email);
+    console.log("🔑 Generated referral code:", referral_code);
 
-    const { error } = await supabase.from("waitlist").insert([
-      {
-        email,
-        referral_code,
-        role,
-        location,
-      },
-    ]);
+    const { error } = await supabase
+      .from("waitlist")
+      .insert([{ email, referral_code }]);
 
     if (error) {
-      console.error(error);
+      console.error("❌ Supabase error:", error);
       setLoading(false);
       return;
     }
 
+    console.log("✅ Saved to Supabase");
+
     try {
-      await fetch("/api/send", {
+      console.log("📡 Calling /api/send...");
+
+      const res = await fetch("/api/send", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({ email }),
       });
+
+      const data = await res.json();
+      console.log("📬 API response:", data);
     } catch (err) {
-      console.error(err);
+      console.error("❌ Email failed:", err);
     }
 
     setRefCode(referral_code);
     setSuccess(true);
     setEmail("");
-    setLocation("");
     setLoading(false);
 
     track("signup_complete");
-
-    loadUsers();
-  }
-
-  async function sendBroadcast() {
-    if (!subject || !message) return;
-
-    setSending(true);
-
-    await fetch("/api/broadcast", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ subject, message }),
-    });
-
-    setSending(false);
-    alert("Broadcast sent");
   }
 
   const shareLink = `https://ers.wankysoftware.com?ref=${refCode}`;
 
   return (
-    <main className="min-h-screen bg-black text-white p-6 space-y-16">
+    <main className="min-h-screen bg-black text-white selection:bg-green-500 selection:text-black">
+      
+      {/* ================= HERO ================= */}
+      <section className="relative h-[90vh] flex items-center justify-center overflow-hidden">
 
-      {/* HERO */}
-      <section className="text-center py-20">
-        <h1 className="text-5xl md:text-7xl font-black">
-          ERS <span className="text-green-500">SYSTEM</span>
-        </h1>
-        <p className="text-gray-400 mt-4">
-          Execution layer for Lagos errands
-        </p>
-      </section>
+        <div className="absolute inset-0 z-0">
+          <img
+            src="/lagos.jpeg"
+            alt="Lagos"
+            className="w-full h-full object-cover opacity-40"
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-black/30 to-black" />
+        </div>
 
-      {/* 📊 METRICS */}
-      <section className="grid md:grid-cols-4 gap-4">
-        <Metric label="Total Users" value={total} />
-        <Metric label="Clients" value={clients} />
-        <Metric label="Runners" value={runners} />
-        <Metric label="Last 7 Days" value={last7days} />
-      </section>
+        <div className="relative z-10 text-center px-6 max-w-4xl">
+          
+          <h1 className="text-5xl md:text-7xl font-black leading-tight">
+            ERS <span className="text-green-500">—</span> Errand Execution System
+          </h1>
 
-      {/* 📧 BROADCAST */}
-      <section className="bg-gray-900 p-6 rounded-xl space-y-3">
-        <h2 className="text-xl font-bold">Broadcast Engine</h2>
+          <p className="mt-6 text-gray-300 text-lg md:text-xl">
+            Lagos moves fast. Your errands should too.
+          </p>
 
-        <input
-          className="w-full p-2 bg-black border border-gray-700"
-          placeholder="Subject"
-          value={subject}
-          onChange={(e) => setSubject(e.target.value)}
-        />
-
-        <textarea
-          className="w-full p-2 bg-black border border-gray-700"
-          placeholder="Message"
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-        />
-
-        <button
-          onClick={sendBroadcast}
-          className="bg-green-500 text-black px-4 py-2 rounded font-bold"
-        >
-          {sending ? "Sending..." : "Send Broadcast"}
-        </button>
-      </section>
-
-      {/* 🏆 LEADERBOARD */}
-      <section className="bg-gray-900 p-6 rounded-xl">
-        <h2 className="text-xl font-bold mb-4">Referral Leaderboard</h2>
-
-        {leaderboard.map((l) => (
-          <div key={l.code} className="flex justify-between py-2 border-b border-gray-800">
-            <span className="text-green-400">{l.code}</span>
-            <span>{l.count}</span>
-          </div>
-        ))}
-      </section>
-
-      {/* SIGNUP */}
-      <section className="max-w-xl mx-auto text-center space-y-6">
-
-        <h2 className="text-2xl font-bold">Join Waitlist</h2>
-
-        {!success ? (
-          <form onSubmit={handleSubmit} className="space-y-3">
-
-            <input
-              className="w-full p-3 bg-gray-900 border border-gray-700"
-              placeholder="Email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-
-            <select
-              className="w-full p-3 bg-gray-900 border border-gray-700"
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
-            >
-              <option value="client">Client</option>
-              <option value="runner">Runner</option>
-            </select>
-
-            <input
-              className="w-full p-3 bg-gray-900 border border-gray-700"
-              placeholder="Location"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-            />
-
-            <button className="bg-green-500 text-black px-4 py-2 w-full font-bold">
-              {loading ? "Loading..." : "Join"}
-            </button>
-
-          </form>
-        ) : (
-          <div className="bg-green-500/10 p-6 rounded-xl border border-green-500/20">
-            <p className="text-green-400 font-bold">You're in 🚀</p>
-            <p className="text-sm mt-2">{refCode}</p>
+          <div className="mt-10 flex flex-col sm:flex-row justify-center gap-4">
+            
             <a
-              className="text-green-400 block mt-3"
-              href={`https://wa.me/?text=Join ERS: ${shareLink}`}
+              href="#waitlist"
+              onClick={() => track("cta_click")}
+              className="bg-green-500 hover:bg-green-400 px-8 py-4 rounded-xl text-black font-bold"
             >
-              Share
+              Join Waitlist
+            </a>
+
+            <a
+              href={`https://wa.me/2348061695138?text=Hi%20I%20want%20to%20become%20a%20runner%20on%20ERS`}
+              className="border border-gray-600 px-8 py-4 rounded-xl"
+            >
+              Become a Runner
             </a>
           </div>
-        )}
+        </div>
       </section>
-    </main>
-  );
-}
 
-function Metric({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="bg-gray-900 p-4 rounded-xl text-center">
-      <p className="text-gray-400 text-sm">{label}</p>
-      <p className="text-2xl text-green-400 font-bold">{value}</p>
-    </div>
+      {/* ================= PROBLEM / SOLUTION ================= */}
+      <section className="max-w-5xl mx-auto px-6 py-24 grid md:grid-cols-2 gap-16">
+        
+        <div>
+          <h2 className="text-3xl font-bold mb-4">The Problem</h2>
+          <p className="text-gray-400">
+            Time is wasted running errands manually. No structure. No trust layer.
+          </p>
+        </div>
+
+        <div>
+          <h2 className="text-3xl font-bold mb-4 text-green-500">The Solution</h2>
+          <p className="text-gray-300">
+            ERS connects you to verified runners who execute tasks fast, safely, and transparently.
+          </p>
+        </div>
+      </section>
+
+      {/* ================= HOW IT WORKS ================= */}
+      <section className="max-w-5xl mx-auto px-6 pb-24">
+        <h2 className="text-3xl font-bold text-center mb-12">
+          How it Works
+        </h2>
+
+        <div className="grid md:grid-cols-3 gap-8">
+          {[
+            "Request an errand",
+            "Get matched with a runner",
+            "Track completion in real time",
+          ].map((step, i) => (
+            <div key={i} className="bg-gray-900 p-6 rounded-xl text-center">
+              <p className="text-green-500 font-bold mb-2">
+                0{i + 1}
+              </p>
+              <p className="text-gray-300">{step}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ================= WAITLIST ================= */}
+      <section id="waitlist" className="max-w-2xl mx-auto px-6 pb-24 text-center">
+        
+        <h2 className="text-3xl font-bold">
+          Get Early Access
+        </h2>
+
+        <p className="text-gray-400 mt-3">
+          Join the ERS private launch in Lagos.
+        </p>
+
+        <div className="mt-8">
+
+          {success ? (
+            <div className="bg-green-500/10 border border-green-500/20 p-8 rounded-xl">
+              
+              <div className="text-4xl mb-4">🚀</div>
+
+              <h3 className="text-green-500 font-bold text-xl">
+                You're on the list
+              </h3>
+
+              <p className="text-gray-400 mt-2">
+                Share your link to move up the queue.
+              </p>
+
+              <a
+                href={`https://wa.me/2348061695138?text=Join%20ERS:%20${shareLink}`}
+                className="block mt-4 text-green-400"
+              >
+                Share on WhatsApp
+              </a>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+              
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Enter email address"
+                className="w-full px-5 py-4 rounded-xl bg-gray-900 border border-gray-700 text-center"
+              />
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="bg-green-500 hover:bg-green-400 text-black font-bold py-4 rounded-xl"
+              >
+                {loading ? "Registering..." : "Get Early Access"}
+              </button>
+            </form>
+          )}
+
+          <a
+            href="https://wa.me/2348061695138?text=Hi%20I%20want%20to%20use%20ERS"
+            className="block mt-6 text-sm text-gray-500 hover:text-green-500"
+          >
+            Or join via WhatsApp →
+          </a>
+
+        </div>
+      </section>
+
+      {/* ================= FOOTER ================= */}
+      <footer className="text-center text-gray-500 py-10 border-t border-white/5">
+        © {new Date().getFullYear()} Wanky Software — ERS
+      </footer>
+    </main>
   );
 }
