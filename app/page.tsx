@@ -59,7 +59,7 @@ export default function Home() {
       <section className="relative h-[80vh] flex items-center justify-center overflow-hidden">
         <div className="absolute inset-0 z-0">
           <img
-            src="/lagos.jpg" 
+            src="/Lagos Nigeria.jpeg" 
             alt="Lagos"
             className="w-full h-full object-cover opacity-30"
           />
