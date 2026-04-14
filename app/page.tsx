@@ -1,33 +1,39 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 const LAGOS_LOCATIONS = [
-  "Lekki Phase 1", "Lekki Phase 2", "Ajah", "Victoria Island", "Ikoyi", 
+  "Lekki Phase 1", "Lekki Phase 2", "Ajah", "Victoria Island", "Ikoyi",
   "Yaba", "Ikeja", "Surulere", "Magodo", "Maryland", "Gbagada", "Festac",
 ];
+
+function track(event: string, payload?: any) {
+  console.log("ERS_EVENT:", event, payload || "");
+}
 
 export default function Home() {
   const [role, setRole] = useState<"client" | "runner">("client");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
 
-  // Shared Form States
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [location, setLocation] = useState("Lekki Phase 1");
-  
-  // Client Specific
+
   const [title, setTitle] = useState("");
   const [deliveryLoc, setDeliveryLoc] = useState("");
-  
-  // Runner Specific
+
   const [transport, setTransport] = useState("bike");
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+
+    console.log("🚀 Submission started:", {
+      role, email, fullName, phone, location
+    });
+
     setLoading(true);
 
     try {
@@ -36,31 +42,50 @@ export default function Home() {
           {
             client_name: fullName,
             client_phone: phone,
-            // client_email: email, // Ensure this column exists in your errands table
-            title: title,
+            client_email: email, // ✅ FIXED
+            title,
             pickup_location: location,
             delivery_location: deliveryLoc,
-            status: 'pending_review'
+            status: "pending_review",
           },
         ]);
+
         if (error) throw error;
+
+        track("errand_created", { email, title });
+
       } else {
         const { error } = await supabase.from("runners").insert([
           {
             full_name: fullName,
-            phone: phone,
-            // email: email, // Ensure this column exists in your runners table
-            location: location,
+            phone,
+            email, // ✅ FIXED
+            location,
             transport_type: transport,
-            status: 'active'
+            status: "pending_review", // 🔥 better than auto-active
           },
         ]);
+
         if (error) throw error;
+
+        track("runner_registered", { email, transport });
+      }
+
+      // OPTIONAL: send email
+      try {
+        await fetch("/api/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email }),
+        });
+      } catch (err) {
+        console.warn("Email failed (non-blocking):", err);
       }
 
       setSuccess(true);
+
     } catch (error: any) {
-      console.error("Database Error:", error);
+      console.error("❌ Submission error:", error);
       alert("Submission failed: " + error.message);
     } finally {
       setLoading(false);
@@ -68,163 +93,167 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-black text-white selection:bg-green-500 font-sans">
-      
-      {/* HERO SECTION */}
+    <main className="min-h-screen bg-black text-white font-sans">
+
+      {/* HERO */}
       <section className="relative h-[70vh] flex items-center justify-center overflow-hidden">
-        <div className="absolute inset-0 z-0">
+        <div className="absolute inset-0">
           <img
-            src="/Lagos Nigeria (1).jpeg" 
-            alt="Lagos"
+            src="/Lagos Nigeria (1).jpeg"
             className="w-full h-full object-cover opacity-30"
           />
-          <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-black/40 to-black" />
+          <div className="absolute inset-0 bg-black/70" />
         </div>
 
-        <div className="relative z-10 text-center px-6 max-w-4xl">
-          <h1 className="text-6xl md:text-8xl font-black leading-tight tracking-tighter uppercase">
+        <div className="relative text-center px-6">
+          <h1 className="text-6xl md:text-8xl font-black uppercase">
             ERS <span className="text-green-500">—</span> SYSTEM
           </h1>
-          <p className="mt-6 text-xl text-gray-400 font-light italic">
-            High-Performance Logistics. Real-Time Execution.
+
+          <p className="mt-6 text-gray-400 text-xl">
+            High-performance logistics. Real-time execution.
           </p>
-          <div className="mt-10">
-             <a href="#action-form" className="bg-green-500 text-black px-10 py-5 rounded-2xl font-black uppercase hover:bg-green-400 transition-all">
-               Deploy Now
-             </a>
-          </div>
+
+          <a
+            href="#form"
+            className="mt-10 inline-block bg-green-500 px-8 py-4 rounded-xl text-black font-bold"
+          >
+            Deploy Now
+          </a>
         </div>
       </section>
 
-      {/* FORM SECTION */}
-      <section id="action-form" className="max-w-4xl mx-auto px-6 py-24">
-        <div className="bg-zinc-900/50 border border-white/10 rounded-[3rem] p-8 md:p-16 shadow-2xl shadow-green-500/5">
-          
-          <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-5xl font-bold uppercase italic tracking-tighter">
-              {role === "client" ? "Request an Errand" : "Register as Runner"}
-            </h2>
-          </div>
+      {/* FORM */}
+      <section id="form" className="max-w-3xl mx-auto py-20 px-6">
 
-          {/* ROLE SELECTOR */}
-          <div className="flex p-1 bg-black rounded-2xl border border-white/5 mb-10 max-w-md mx-auto">
-            <button 
-              onClick={() => { setRole("client"); setSuccess(false); }}
-              className={`flex-1 py-4 rounded-xl font-bold transition-all ${role === "client" ? "bg-green-500 text-black" : "text-gray-500"}`}
+        {/* ROLE SWITCH */}
+        <div className="flex mb-8 bg-gray-900 rounded-xl overflow-hidden">
+          <button
+            onClick={() => { setRole("client"); setSuccess(false); }}
+            className={`flex-1 py-3 ${role === "client" ? "bg-green-500 text-black" : ""}`}
+          >
+            Client
+          </button>
+          <button
+            onClick={() => { setRole("runner"); setSuccess(false); }}
+            className={`flex-1 py-3 ${role === "runner" ? "bg-green-500 text-black" : ""}`}
+          >
+            Runner
+          </button>
+        </div>
+
+        {success ? (
+          <div className="bg-green-500/10 border border-green-500/20 p-8 rounded-xl text-center">
+            <h3 className="text-green-400 text-xl font-bold">System Logged 🚀</h3>
+            <p className="text-gray-400 mt-3">
+              {role === "client"
+                ? "Your errand has been queued for review."
+                : "Your runner profile is under review."}
+            </p>
+
+            <button
+              onClick={() => setSuccess(false)}
+              className="mt-6 text-green-400 underline"
             >
-              Client
-            </button>
-            <button 
-              onClick={() => { setRole("runner"); setSuccess(false); }}
-              className={`flex-1 py-4 rounded-xl font-bold transition-all ${role === "runner" ? "bg-green-500 text-black" : "text-gray-500"}`}
-            >
-              Runner
+              Submit another
             </button>
           </div>
+        ) : (
 
-          <div className="max-w-md mx-auto">
-            {success ? (
-              <div className="text-center bg-green-500/10 border border-green-500/20 p-10 rounded-3xl animate-in zoom-in">
-                <h3 className="text-green-500 text-2xl font-bold uppercase">System Logged</h3>
-                <p className="text-gray-400 mt-4">
-                  {role === "client" 
-                    ? `Order received for ${fullName}. We will contact you at ${phone} or ${email} shortly.` 
-                    : "Runner profile created. Check your email for next steps."}
-                </p>
-                <button onClick={() => setSuccess(false)} className="mt-6 text-sm text-green-500 underline uppercase font-bold">New Submission</button>
-              </div>
-            ) : (
-              <form onSubmit={handleSubmit} className="space-y-4">
-                
-                {/* SHARED IDENTITY FIELDS */}
-                <div className="space-y-4">
-                  <input
-                    type="text" required placeholder="Full Name"
-                    value={fullName} onChange={(e) => setFullName(e.target.value)}
-                    className="w-full px-6 py-4 rounded-2xl bg-black border border-white/10 focus:border-green-500 outline-none transition-all"
-                  />
-                  <input
-                    type="email" required placeholder="Email Address"
-                    value={email} onChange={(e) => setEmail(e.target.value)}
-                    className="w-full px-6 py-4 rounded-2xl bg-black border border-white/10 focus:border-green-500 outline-none transition-all"
-                  />
-                  <input
-                    type="tel" required placeholder="WhatsApp Number (e.g. 0801...)"
-                    value={phone} onChange={(e) => setPhone(e.target.value)}
-                    className="w-full px-6 py-4 rounded-2xl bg-black border border-white/10 focus:border-green-500 outline-none transition-all"
-                  />
-                </div>
+          <form onSubmit={handleSubmit} className="space-y-4">
 
-                {/* CLIENT SPECIFIC FIELDS */}
-                {role === "client" && (
-                  <div className="pt-4 border-t border-white/5 space-y-4">
-                    <label className="text-[10px] uppercase text-green-500 font-bold tracking-widest ml-2">Errand Details</label>
-                    <input
-                      type="text" required placeholder="What do you need? (e.g. Grocery Pickup)"
-                      value={title} onChange={(e) => setTitle(e.target.value)}
-                      className="w-full px-6 py-4 rounded-2xl bg-black border border-white/10 focus:border-green-500 outline-none"
-                    />
-                    <div className="grid grid-cols-1 gap-4">
-                      <div>
-                        <label className="text-[10px] uppercase text-gray-500 ml-2">Pickup Zone</label>
-                        <select
-                          value={location} onChange={(e) => setLocation(e.target.value)}
-                          className="w-full px-6 py-4 rounded-2xl bg-black border border-white/10 outline-none appearance-none cursor-pointer"
-                        >
-                          {LAGOS_LOCATIONS.map((loc) => <option key={loc} value={loc}>{loc}</option>)}
-                        </select>
-                      </div>
-                      <input
-                        type="text" required placeholder="Specific Drop-off Zone (e.g. Lekki Phase 1)"
-                        value={deliveryLoc} onChange={(e) => setDeliveryLoc(e.target.value)}
-                        className="w-full px-6 py-4 rounded-2xl bg-black border border-white/10 focus:border-green-500 outline-none"
-                      />
-                    </div>
-                  </div>
-                )}
+            <input
+              required
+              placeholder="Full Name"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              className="w-full p-3 bg-gray-900 border border-gray-700"
+            />
 
-                {/* RUNNER SPECIFIC FIELDS */}
-                {role === "runner" && (
-                  <div className="pt-4 border-t border-white/5 space-y-4">
-                    <label className="text-[10px] uppercase text-green-500 font-bold tracking-widest ml-2">Fleet Details</label>
-                    <div>
-                      <label className="text-[10px] uppercase text-gray-500 ml-2">Primary Operating Zone</label>
-                      <select
-                        value={location} onChange={(e) => setLocation(e.target.value)}
-                        className="w-full px-6 py-4 rounded-2xl bg-black border border-white/10 outline-none appearance-none cursor-pointer"
-                      >
-                        {LAGOS_LOCATIONS.map((loc) => <option key={loc} value={loc}>{loc}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-[10px] uppercase text-gray-500 ml-2">Transport Method</label>
-                      <select
-                        value={transport} onChange={(e) => setTransport(e.target.value)}
-                        className="w-full px-6 py-4 rounded-2xl bg-black border border-white/10 outline-none appearance-none cursor-pointer"
-                      >
-                        <option value="bike">Motorcycle (Bike)</option>
-                        <option value="car">Car / Van</option>
-                        <option value="foot">Foot / Public Transport</option>
-                        <option value="bicycle">Bicycle</option>
-                      </select>
-                    </div>
-                  </div>
-                )}
+            <input
+              required
+              type="email"
+              placeholder="Email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full p-3 bg-gray-900 border border-gray-700"
+            />
 
-                <button
-                  type="submit" disabled={loading}
-                  className="w-full bg-green-500 hover:bg-green-400 text-black font-black py-5 rounded-2xl text-lg uppercase transition-all mt-6 shadow-lg shadow-green-500/20 active:scale-[0.98]"
+            <input
+              required
+              placeholder="Phone"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              className="w-full p-3 bg-gray-900 border border-gray-700"
+            />
+
+            {role === "client" && (
+              <>
+                <input
+                  required
+                  placeholder="Errand Title"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="w-full p-3 bg-gray-900 border border-gray-700"
+                />
+
+                <select
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  className="w-full p-3 bg-gray-900 border border-gray-700"
                 >
-                  {loading ? "Processing..." : role === "client" ? "Send Runner" : "Join Fleet"}
-                </button>
-              </form>
+                  {LAGOS_LOCATIONS.map((loc) => (
+                    <option key={loc}>{loc}</option>
+                  ))}
+                </select>
+
+                <input
+                  required
+                  placeholder="Delivery Location"
+                  value={deliveryLoc}
+                  onChange={(e) => setDeliveryLoc(e.target.value)}
+                  className="w-full p-3 bg-gray-900 border border-gray-700"
+                />
+              </>
             )}
-          </div>
-        </div>
+
+            {role === "runner" && (
+              <>
+                <select
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  className="w-full p-3 bg-gray-900 border border-gray-700"
+                >
+                  {LAGOS_LOCATIONS.map((loc) => (
+                    <option key={loc}>{loc}</option>
+                  ))}
+                </select>
+
+                <select
+                  value={transport}
+                  onChange={(e) => setTransport(e.target.value)}
+                  className="w-full p-3 bg-gray-900 border border-gray-700"
+                >
+                  <option value="bike">Bike</option>
+                  <option value="car">Car</option>
+                  <option value="foot">Foot</option>
+                </select>
+              </>
+            )}
+
+            <button
+              disabled={loading}
+              className="w-full bg-green-500 py-3 text-black font-bold"
+            >
+              {loading ? "Processing..." : "Submit"}
+            </button>
+
+          </form>
+        )}
       </section>
 
-      <footer className="py-12 text-center border-t border-white/5">
-        <p className="text-gray-600 text-[10px] font-bold uppercase tracking-[0.4em]">© {new Date().getFullYear()} Wanky Software — Lagos Dispatch</p>
+      <footer className="text-center py-10 text-gray-600 text-sm">
+        © {new Date().getFullYear()} ERS — Lagos Dispatch System
       </footer>
     </main>
   );
