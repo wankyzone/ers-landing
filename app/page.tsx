@@ -33,7 +33,9 @@ export default function Home() {
       {
         email,
         referral_code,
-        referred_by: referredBy,
+        role,
+        location,
+        referred_by: referredBy || null,
       },
     ]);
 
