@@ -3,80 +3,73 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 
-function generateCode(email: string) {
-  return email.split("@")[0] + Math.floor(Math.random() * 9999);
-}
-
-// Major Lagos Districts for selection
 const LAGOS_LOCATIONS = [
-  "Lekki Phase 1",
-  "Lekki Phase 2",
-  "Ajah",
-  "Victoria Island",
-  "Ikoyi",
-  "Yaba",
-  "Ikeja",
-  "Surulere",
-  "Magodo",
-  "Maryland",
-  "Gbagada",
-  "Festac",
+  "Lekki Phase 1", "Lekki Phase 2", "Ajah", "Victoria Island", "Ikoyi", 
+  "Yaba", "Ikeja", "Surulere", "Magodo", "Maryland", "Gbagada", "Festac",
 ];
 
 export default function Home() {
-  const [email, setEmail] = useState("");
   const [role, setRole] = useState<"client" | "runner">("client");
-  const [location, setLocation] = useState("Lekki Phase 1"); // Default location
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [refCode, setRefCode] = useState("");
-  const [referrer, setReferrer] = useState("");
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const ref = params.get("ref");
-    if (ref) setReferrer(ref);
-  }, []);
+  // Form States
+  const [email, setEmail] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [location, setLocation] = useState("Lekki Phase 1");
+  
+  // Client Specific
+  const [title, setTitle] = useState("");
+  const [deliveryLoc, setDeliveryLoc] = useState("");
+  
+  // Runner Specific
+  const [transport, setTransport] = useState("bike");
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!email || !location) return;
-
     setLoading(true);
-    const referral_code = generateCode(email);
 
-    // ✅ Now sending email, role, referral, AND location
-    const { error } = await supabase.from("waitlist").insert([
-      {
-        email,
-        role,
-        location, // Capturing the selected Lagos hub
-        referral_code,
-        referred_by: referrer || null,
-        tag: 'early'
-      },
-    ]);
+    try {
+      if (role === "client") {
+        const { error } = await supabase.from("errands").insert([
+          {
+            client_name: fullName,
+            client_phone: phone,
+            title: title,
+            pickup_location: location,
+            delivery_location: deliveryLoc,
+            status: 'pending_review'
+          },
+        ]);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("runners").insert([
+          {
+            full_name: fullName,
+            phone: phone,
+            location: location,
+            transport_type: transport,
+            status: 'active'
+          },
+        ]);
+        if (error) throw error;
+      }
 
-    if (error) {
+      setSuccess(true);
+    } catch (error: any) {
       console.error("Database Error:", error);
-      alert("Registration failed: " + error.message);
+      alert("Submission failed: " + error.message);
+    } finally {
       setLoading(false);
-      return;
     }
-
-    setRefCode(referral_code);
-    setSuccess(true);
-    setEmail("");
-    setLoading(false);
   }
-
-  const shareLink = `https://ers.wankysoftware.com?ref=${refCode}`;
 
   return (
     <main className="min-h-screen bg-black text-white selection:bg-green-500 font-sans">
       
       {/* HERO SECTION */}
-      <section className="relative h-[80vh] flex items-center justify-center overflow-hidden">
+      <section className="relative h-[70vh] flex items-center justify-center overflow-hidden">
         <div className="absolute inset-0 z-0">
           <img
             src="/Lagos Nigeria (1).jpeg" 
@@ -91,102 +84,133 @@ export default function Home() {
             ERS <span className="text-green-500">—</span> SYSTEM
           </h1>
           <p className="mt-6 text-xl text-gray-400 font-light italic">
-            Lagos Logistics. Redefined for High-Trust Execution.
+            High-Performance Logistics. Real-Time Execution.
           </p>
           <div className="mt-10">
-             <a href="#waitlist" className="bg-green-500 text-black px-10 py-5 rounded-2xl font-black uppercase hover:bg-green-400 transition-all">
-               Get Started
+             <a href="#action-form" className="bg-green-500 text-black px-10 py-5 rounded-2xl font-black uppercase hover:bg-green-400 transition-all">
+               Deploy Now
              </a>
           </div>
         </div>
       </section>
 
-      {/* SEGMENTED SELECTION SECTION */}
-      <section id="waitlist" className="max-w-4xl mx-auto px-6 py-24">
+      {/* FORM SECTION */}
+      <section id="action-form" className="max-w-4xl mx-auto px-6 py-24">
         <div className="bg-zinc-900/50 border border-white/10 rounded-[3rem] p-8 md:p-16">
           
           <div className="text-center mb-12">
-            <h2 className="text-3xl md:text-5xl font-bold uppercase italic tracking-tighter">Choose Your Path</h2>
-            <p className="text-gray-500 mt-4">Join the ERS ecosystem as a client or an elite runner.</p>
+            <h2 className="text-3xl md:text-5xl font-bold uppercase italic tracking-tighter">
+              {role === "client" ? "Request an Errand" : "Register as Runner"}
+            </h2>
           </div>
 
-          {/* ROLE SELECTOR TOGGLE */}
-          <div className="flex p-1 bg-black rounded-2xl border border-white/5 mb-6 max-w-md mx-auto">
+          {/* ROLE SELECTOR */}
+          <div className="flex p-1 bg-black rounded-2xl border border-white/5 mb-10 max-w-md mx-auto">
             <button 
-              onClick={() => setRole("client")}
-              className={`flex-1 py-4 rounded-xl font-bold transition-all ${role === "client" ? "bg-green-500 text-black shadow-lg shadow-green-500/20" : "text-gray-500 hover:text-white"}`}
+              onClick={() => { setRole("client"); setSuccess(false); }}
+              className={`flex-1 py-4 rounded-xl font-bold transition-all ${role === "client" ? "bg-green-500 text-black" : "text-gray-500"}`}
             >
-              I am a Client
+              Client
             </button>
             <button 
-              onClick={() => setRole("runner")}
-              className={`flex-1 py-4 rounded-xl font-bold transition-all ${role === "runner" ? "bg-green-500 text-black shadow-lg shadow-green-500/20" : "text-gray-500 hover:text-white"}`}
+              onClick={() => { setRole("runner"); setSuccess(false); }}
+              className={`flex-1 py-4 rounded-xl font-bold transition-all ${role === "runner" ? "bg-green-500 text-black" : "text-gray-500"}`}
             >
-              I am a Runner
+              Runner
             </button>
           </div>
 
-          {/* DYNAMIC SIGNUP FORM */}
           <div className="max-w-md mx-auto">
             {success ? (
-              <div className="text-center bg-green-500/10 border border-green-500/20 p-10 rounded-3xl animate-in zoom-in duration-300">
-                <h3 className="text-green-500 text-2xl font-bold uppercase">System Access Logged</h3>
+              <div className="text-center bg-green-500/10 border border-green-500/20 p-10 rounded-3xl animate-in zoom-in">
+                <h3 className="text-green-500 text-2xl font-bold uppercase">System Logged</h3>
                 <p className="text-gray-400 mt-4">
                   {role === "client" 
-                    ? "You will be notified as soon as a runner is dispatched to your zone." 
-                    : "Onboarding instructions for new runners have been queued for your email."}
+                    ? "Your request is live. A dispatcher will contact you on WhatsApp shortly." 
+                    : "Runner profile created. Stay active for incoming job notifications."}
                 </p>
-                <div className="mt-6 p-4 bg-white/5 rounded-xl border border-white/10">
-                  <span className="text-xs text-gray-500 uppercase block mb-1">Your Referral Link</span>
-                  <code className="text-green-400 text-xs break-all">{shareLink}</code>
-                </div>
+                <button onClick={() => setSuccess(false)} className="mt-6 text-sm text-green-500 underline uppercase font-bold">New Submission</button>
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="text-center mb-6">
-                  <span className="text-xs font-bold text-green-500 uppercase tracking-widest bg-green-500/10 px-3 py-1 rounded-full">
-                    {role === "client" ? "Requesting Errands" : "Earning as a Runner"}
-                  </span>
-                </div>
-
-                {/* LOCATION SELECTOR */}
-                <div className="space-y-2">
-                  <label className="text-[10px] uppercase text-gray-500 tracking-widest ml-2">Primary Zone (Lagos)</label>
-                  <select
-                    value={location}
-                    onChange={(e) => setLocation(e.target.value)}
-                    className="w-full px-6 py-5 rounded-2xl bg-black border border-white/10 focus:border-green-500 transition-all outline-none text-white appearance-none cursor-pointer"
-                  >
-                    {LAGOS_LOCATIONS.map((loc) => (
-                      <option key={loc} value={loc}>{loc}</option>
-                    ))}
-                  </select>
-                </div>
-
+                {/* SHARED FIELDS */}
                 <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Enter your email"
-                  className="w-full px-6 py-5 rounded-2xl bg-black border border-white/10 focus:border-green-500 transition-all text-center outline-none text-lg"
+                  type="text" required placeholder="Full Name"
+                  value={fullName} onChange={(e) => setFullName(e.target.value)}
+                  className="w-full px-6 py-4 rounded-2xl bg-black border border-white/10 focus:border-green-500 outline-none"
+                />
+                <input
+                  type="tel" required placeholder="WhatsApp Phone Number"
+                  value={phone} onChange={(e) => setPhone(e.target.value)}
+                  className="w-full px-6 py-4 rounded-2xl bg-black border border-white/10 focus:border-green-500 outline-none"
                 />
 
+                {/* CLIENT SPECIFIC FIELDS */}
+                {role === "client" && (
+                  <>
+                    <input
+                      type="text" required placeholder="What do you need? (e.g. Delivery)"
+                      value={title} onChange={(e) => setTitle(e.target.value)}
+                      className="w-full px-6 py-4 rounded-2xl bg-black border border-white/10 focus:border-green-500 outline-none"
+                    />
+                    <div className="grid grid-cols-1 gap-4">
+                      <div>
+                        <label className="text-[10px] uppercase text-gray-500 ml-2">Pickup Zone</label>
+                        <select
+                          value={location} onChange={(e) => setLocation(e.target.value)}
+                          className="w-full px-6 py-4 rounded-2xl bg-black border border-white/10 outline-none"
+                        >
+                          {LAGOS_LOCATIONS.map((loc) => <option key={loc} value={loc}>{loc}</option>)}
+                        </select>
+                      </div>
+                      <input
+                        type="text" required placeholder="Drop-off Address/Zone"
+                        value={deliveryLoc} onChange={(e) => setDeliveryLoc(e.target.value)}
+                        className="w-full px-6 py-4 rounded-2xl bg-black border border-white/10 focus:border-green-500 outline-none"
+                      />
+                    </div>
+                  </>
+                )}
+
+                {/* RUNNER SPECIFIC FIELDS */}
+                {role === "runner" && (
+                  <>
+                    <div>
+                      <label className="text-[10px] uppercase text-gray-500 ml-2">Primary Operating Zone</label>
+                      <select
+                        value={location} onChange={(e) => setLocation(e.target.value)}
+                        className="w-full px-6 py-4 rounded-2xl bg-black border border-white/10 outline-none"
+                      >
+                        {LAGOS_LOCATIONS.map((loc) => <option key={loc} value={loc}>{loc}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[10px] uppercase text-gray-500 ml-2">Transport Type</label>
+                      <select
+                        value={transport} onChange={(e) => setTransport(e.target.value)}
+                        className="w-full px-6 py-4 rounded-2xl bg-black border border-white/10 outline-none"
+                      >
+                        <option value="bike">Motorcycle (Bike)</option>
+                        <option value="car">Car / Van</option>
+                        <option value="foot">Foot / Public Transport</option>
+                        <option value="bicycle">Bicycle</option>
+                      </select>
+                    </div>
+                  </>
+                )}
+
                 <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full bg-green-500 hover:bg-green-400 text-black font-black py-5 rounded-2xl text-lg uppercase transition-all shadow-lg shadow-green-500/10"
+                  type="submit" disabled={loading}
+                  className="w-full bg-green-500 hover:bg-green-400 text-black font-black py-5 rounded-2xl text-lg uppercase transition-all mt-4"
                 >
-                  {loading ? "Registering..." : `Join as ${role}`}
+                  {loading ? "Processing..." : role === "client" ? "Send Runner" : "Join Fleet"}
                 </button>
               </form>
             )}
           </div>
-
         </div>
       </section>
 
-      {/* FOOTER */}
       <footer className="py-12 text-center border-t border-white/5">
         <p className="text-gray-600 text-[10px] font-bold uppercase tracking-[0.4em]">© {new Date().getFullYear()} Wanky Software — Lagos Dispatch</p>
       </footer>
