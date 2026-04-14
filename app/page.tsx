@@ -7,9 +7,26 @@ function generateCode(email: string) {
   return email.split("@")[0] + Math.floor(Math.random() * 9999);
 }
 
+// Major Lagos Districts for selection
+const LAGOS_LOCATIONS = [
+  "Lekki Phase 1",
+  "Lekki Phase 2",
+  "Ajah",
+  "Victoria Island",
+  "Ikoyi",
+  "Yaba",
+  "Ikeja",
+  "Surulere",
+  "Magodo",
+  "Maryland",
+  "Gbagada",
+  "Festac",
+];
+
 export default function Home() {
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<"client" | "runner">("client"); // Default to client
+  const [role, setRole] = useState<"client" | "runner">("client");
+  const [location, setLocation] = useState("Lekki Phase 1"); // Default location
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [refCode, setRefCode] = useState("");
@@ -23,23 +40,26 @@ export default function Home() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!email) return;
+    if (!email || !location) return;
 
     setLoading(true);
     const referral_code = generateCode(email);
 
-    // ✅ Captured 'role' is now sent to Supabase
+    // ✅ Now sending email, role, referral, AND location
     const { error } = await supabase.from("waitlist").insert([
       {
         email,
-        role, // 'client' or 'runner'
+        role,
+        location, // Capturing the selected Lagos hub
         referral_code,
         referred_by: referrer || null,
+        tag: 'early'
       },
     ]);
 
     if (error) {
       console.error("Database Error:", error);
+      alert("Registration failed: " + error.message);
       setLoading(false);
       return;
     }
@@ -91,7 +111,7 @@ export default function Home() {
           </div>
 
           {/* ROLE SELECTOR TOGGLE */}
-          <div className="flex p-1 bg-black rounded-2xl border border-white/5 mb-10 max-w-md mx-auto">
+          <div className="flex p-1 bg-black rounded-2xl border border-white/5 mb-6 max-w-md mx-auto">
             <button 
               onClick={() => setRole("client")}
               className={`flex-1 py-4 rounded-xl font-bold transition-all ${role === "client" ? "bg-green-500 text-black shadow-lg shadow-green-500/20" : "text-gray-500 hover:text-white"}`}
@@ -128,6 +148,21 @@ export default function Home() {
                     {role === "client" ? "Requesting Errands" : "Earning as a Runner"}
                   </span>
                 </div>
+
+                {/* LOCATION SELECTOR */}
+                <div className="space-y-2">
+                  <label className="text-[10px] uppercase text-gray-500 tracking-widest ml-2">Primary Zone (Lagos)</label>
+                  <select
+                    value={location}
+                    onChange={(e) => setLocation(e.target.value)}
+                    className="w-full px-6 py-5 rounded-2xl bg-black border border-white/10 focus:border-green-500 transition-all outline-none text-white appearance-none cursor-pointer"
+                  >
+                    {LAGOS_LOCATIONS.map((loc) => (
+                      <option key={loc} value={loc}>{loc}</option>
+                    ))}
+                  </select>
+                </div>
+
                 <input
                   type="email"
                   required
@@ -136,10 +171,11 @@ export default function Home() {
                   placeholder="Enter your email"
                   className="w-full px-6 py-5 rounded-2xl bg-black border border-white/10 focus:border-green-500 transition-all text-center outline-none text-lg"
                 />
+
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-green-500 hover:bg-green-400 text-black font-black py-5 rounded-2xl text-lg uppercase transition-all"
+                  className="w-full bg-green-500 hover:bg-green-400 text-black font-black py-5 rounded-2xl text-lg uppercase transition-all shadow-lg shadow-green-500/10"
                 >
                   {loading ? "Registering..." : `Join as ${role}`}
                 </button>
