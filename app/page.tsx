@@ -1,259 +1,172 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
-const LAGOS_LOCATIONS = [
-  "Lekki Phase 1", "Lekki Phase 2", "Ajah", "Victoria Island", "Ikoyi",
-  "Yaba", "Ikeja", "Surulere", "Magodo", "Maryland", "Gbagada", "Festac",
-];
-
-function track(event: string, payload?: any) {
-  console.log("ERS_EVENT:", event, payload || "");
+function generateCode(email: string) {
+  return email.split("@")[0] + Math.floor(Math.random() * 9999);
 }
 
 export default function Home() {
-  const [role, setRole] = useState<"client" | "runner">("client");
+  const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [refCode, setRefCode] = useState("");
+  const [referredBy, setReferredBy] = useState<string | null>(null);
 
-  const [email, setEmail] = useState("");
-  const [fullName, setFullName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [location, setLocation] = useState("Lekki Phase 1");
-
-  const [title, setTitle] = useState("");
-  const [deliveryLoc, setDeliveryLoc] = useState("");
-
-  const [transport, setTransport] = useState("bike");
+  // capture referral
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get("ref");
+    if (ref) setReferredBy(ref);
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-
-    console.log("🚀 Submission started:", {
-      role, email, fullName, phone, location
-    });
+    if (!email) return;
 
     setLoading(true);
 
-    try {
-      if (role === "client") {
-        const { error } = await supabase.from("errands").insert([
-          {
-            client_name: fullName,
-            client_phone: phone,
-            client_email: email, // ✅ FIXED
-            title,
-            pickup_location: location,
-            delivery_location: deliveryLoc,
-            status: "pending_review",
-          },
-        ]);
+    const referral_code = generateCode(email);
 
-        if (error) throw error;
+    const { error } = await supabase.from("waitlist").insert([
+      {
+        email,
+        referral_code,
+        referred_by: referredBy,
+      },
+    ]);
 
-        track("errand_created", { email, title });
-
-      } else {
-        const { error } = await supabase.from("runners").insert([
-          {
-            full_name: fullName,
-            phone,
-            email, // ✅ FIXED
-            location,
-            transport_type: transport,
-            status: "pending_review", // 🔥 better than auto-active
-          },
-        ]);
-
-        if (error) throw error;
-
-        track("runner_registered", { email, transport });
-      }
-
-      // OPTIONAL: send email
-      try {
-        await fetch("/api/send", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email }),
-        });
-      } catch (err) {
-        console.warn("Email failed (non-blocking):", err);
-      }
-
-      setSuccess(true);
-
-    } catch (error: any) {
-      console.error("❌ Submission error:", error);
-      alert("Submission failed: " + error.message);
-    } finally {
+    if (error) {
+      console.error(error);
       setLoading(false);
+      return;
     }
+
+    // increment referral
+    if (referredBy) {
+      await supabase.rpc("increment_referral", {
+        ref_code: referredBy,
+      });
+    }
+
+    try {
+      await fetch("/api/send", {
+        method: "POST",
+        body: JSON.stringify({ email }),
+      });
+    } catch {}
+
+    setRefCode(referral_code);
+    setSuccess(true);
+    setEmail("");
+    setLoading(false);
   }
+
+  const shareLink = `https://ers.wankysoftware.com?ref=${refCode}`;
 
   return (
     <main className="min-h-screen bg-black text-white font-sans">
 
       {/* HERO */}
-      <section className="relative h-[70vh] flex items-center justify-center overflow-hidden">
+      <section className="relative h-[90vh] flex items-center justify-center overflow-hidden">
         <div className="absolute inset-0">
           <img
-            src="/Lagos Nigeria (1).jpeg"
-            className="w-full h-full object-cover opacity-30"
+            src="/lagos nigeria (1).jpeg"
+            className="w-full h-full object-cover opacity-40"
           />
-          <div className="absolute inset-0 bg-black/70" />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-black/30 to-black" />
         </div>
 
-        <div className="relative text-center px-6">
-          <h1 className="text-6xl md:text-8xl font-black uppercase">
+        <div className="relative z-10 text-center px-6 max-w-4xl">
+          <h1 className="text-6xl md:text-8xl font-black tracking-tight">
             ERS <span className="text-green-500">—</span> SYSTEM
           </h1>
 
-          <p className="mt-6 text-gray-400 text-xl">
-            High-performance logistics. Real-time execution.
+          <p className="mt-6 text-xl text-gray-300 max-w-xl mx-auto">
+            Lagos moves fast. Your errands should too.  
+            Join the private rollout of the city’s execution layer.
           </p>
 
-          <a
-            href="#form"
-            className="mt-10 inline-block bg-green-500 px-8 py-4 rounded-xl text-black font-bold"
-          >
-            Deploy Now
-          </a>
-        </div>
-      </section>
+          <div className="mt-10 flex flex-col sm:flex-row gap-4 justify-center">
 
-      {/* FORM */}
-      <section id="form" className="max-w-3xl mx-auto py-20 px-6">
-
-        {/* ROLE SWITCH */}
-        <div className="flex mb-8 bg-gray-900 rounded-xl overflow-hidden">
-          <button
-            onClick={() => { setRole("client"); setSuccess(false); }}
-            className={`flex-1 py-3 ${role === "client" ? "bg-green-500 text-black" : ""}`}
-          >
-            Client
-          </button>
-          <button
-            onClick={() => { setRole("runner"); setSuccess(false); }}
-            className={`flex-1 py-3 ${role === "runner" ? "bg-green-500 text-black" : ""}`}
-          >
-            Runner
-          </button>
-        </div>
-
-        {success ? (
-          <div className="bg-green-500/10 border border-green-500/20 p-8 rounded-xl text-center">
-            <h3 className="text-green-400 text-xl font-bold">System Logged 🚀</h3>
-            <p className="text-gray-400 mt-3">
-              {role === "client"
-                ? "Your errand has been queued for review."
-                : "Your runner profile is under review."}
-            </p>
-
-            <button
-              onClick={() => setSuccess(false)}
-              className="mt-6 text-green-400 underline"
+            <a
+              href="#waitlist"
+              className="bg-green-500 px-8 py-4 rounded-xl text-black font-bold"
             >
-              Submit another
-            </button>
+              Join Waitlist
+            </a>
+
+            <a
+             href="/client"
+             className="border border-white/20 px-8 py-4 rounded-xl"
+             >
+              Request Errand
+              </a>
+            <a 
+            href="/runner"
+            className="border border-white/20 px-8 py-4 rounded-xl"
+            >
+              Become a Runner
+              </a>
+
           </div>
-        ) : (
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-
-            <input
-              required
-              placeholder="Full Name"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              className="w-full p-3 bg-gray-900 border border-gray-700"
-            />
-
-            <input
-              required
-              type="email"
-              placeholder="Email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full p-3 bg-gray-900 border border-gray-700"
-            />
-
-            <input
-              required
-              placeholder="Phone"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              className="w-full p-3 bg-gray-900 border border-gray-700"
-            />
-
-            {role === "client" && (
-              <>
-                <input
-                  required
-                  placeholder="Errand Title"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className="w-full p-3 bg-gray-900 border border-gray-700"
-                />
-
-                <select
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  className="w-full p-3 bg-gray-900 border border-gray-700"
-                >
-                  {LAGOS_LOCATIONS.map((loc) => (
-                    <option key={loc}>{loc}</option>
-                  ))}
-                </select>
-
-                <input
-                  required
-                  placeholder="Delivery Location"
-                  value={deliveryLoc}
-                  onChange={(e) => setDeliveryLoc(e.target.value)}
-                  className="w-full p-3 bg-gray-900 border border-gray-700"
-                />
-              </>
-            )}
-
-            {role === "runner" && (
-              <>
-                <select
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  className="w-full p-3 bg-gray-900 border border-gray-700"
-                >
-                  {LAGOS_LOCATIONS.map((loc) => (
-                    <option key={loc}>{loc}</option>
-                  ))}
-                </select>
-
-                <select
-                  value={transport}
-                  onChange={(e) => setTransport(e.target.value)}
-                  className="w-full p-3 bg-gray-900 border border-gray-700"
-                >
-                  <option value="bike">Bike</option>
-                  <option value="car">Car</option>
-                  <option value="foot">Foot</option>
-                </select>
-              </>
-            )}
-
-            <button
-              disabled={loading}
-              className="w-full bg-green-500 py-3 text-black font-bold"
-            >
-              {loading ? "Processing..." : "Submit"}
-            </button>
-
-          </form>
-        )}
+        </div>
       </section>
 
+      {/* WAITLIST */}
+      <section id="waitlist" className="max-w-xl mx-auto py-20 px-6 text-center">
+
+        <h2 className="text-3xl font-bold">
+          Secure Early Access
+        </h2>
+
+        <p className="text-gray-400 mt-3">
+          Get priority when ERS goes live.
+        </p>
+
+        <div className="mt-10">
+
+          {success ? (
+            <div className="bg-green-500/10 p-6 rounded-xl border border-green-500/20">
+              <h3 className="text-green-400 font-bold">You're in 🚀</h3>
+
+              <p className="mt-2 text-sm">
+                Your code: <span className="text-white">{refCode}</span>
+              </p>
+
+              <a
+                href={`https://wa.me/?text=Join ERS: ${shareLink}`}
+                className="block mt-4 text-green-400"
+              >
+                Share your referral link
+              </a>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-3">
+
+              <input
+                type="email"
+                required
+                placeholder="Enter your email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full p-4 bg-gray-900 border border-gray-700 rounded"
+              />
+
+              <button className="w-full bg-green-500 py-3 text-black font-bold rounded">
+                {loading ? "Processing..." : "Join Waitlist"}
+              </button>
+
+            </form>
+          )}
+
+        </div>
+      </section>
+
+      {/* FOOTER */}
       <footer className="text-center py-10 text-gray-600 text-sm">
-        © {new Date().getFullYear()} ERS — Lagos Dispatch System
+        © {new Date().getFullYear()} ERS — Lagos Execution System
       </footer>
     </main>
   );
