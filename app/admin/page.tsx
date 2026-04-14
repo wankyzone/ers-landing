@@ -42,11 +42,14 @@ export default function AdminPage() {
   const [password, setPassword] = useState("");
   const [authenticated, setAuthenticated] = useState(false);
 
-  // 📧 Broadcast
+  // 📧 Broadcast State
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
 
+  // =========================
+  // 📦 FETCH DATA
+  // =========================
   async function fetchAllData() {
     setLoading(true);
 
@@ -102,28 +105,36 @@ export default function AdminPage() {
       : 0;
 
   // =========================
-  // 📧 BROADCAST
+  // 📧 BROADCAST (FIXED)
   // =========================
   async function sendBroadcast() {
-    if (!subject || !message) return alert("Missing subject/message");
+    if (!message) return alert("Enter a message");
 
     setSending(true);
 
     try {
-      await fetch("/api/broadcast", {
+      const res = await fetch("/api/broadcast", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ subject, message }),
+        body: JSON.stringify({
+          subject: subject || "ERS Update",
+          message,
+        }),
       });
 
+      const data = await res.json();
+      console.log("📡 Broadcast response:", data);
+
+      if (!res.ok) throw new Error(data.error || "Failed");
+
       alert("Broadcast sent 🚀");
-      setSubject("");
       setMessage("");
-    } catch (err) {
-      console.error(err);
-      alert("Broadcast failed");
+      setSubject("");
+    } catch (err: any) {
+      console.error("❌ Broadcast error:", err);
+      alert("Error: " + err.message);
     }
 
     setSending(false);
@@ -139,7 +150,9 @@ export default function AdminPage() {
     fetchAllData();
   }
 
+  // =========================
   // 🔐 LOGIN
+  // =========================
   if (!authenticated) {
     return (
       <main className="min-h-screen flex items-center justify-center bg-black text-white">
@@ -242,8 +255,8 @@ export default function AdminPage() {
           <thead className="bg-gray-900">
             <tr>
               <th className="p-3">Email</th>
-              <th className="p-3">Role</th>
-              <th className="p-3">Location</th>
+              <th className="p-3">Referred By</th>
+              <th className="p-3">Joined</th>
               <th className="p-3">Action</th>
             </tr>
           </thead>
@@ -252,8 +265,10 @@ export default function AdminPage() {
             {waitlist.map((u) => (
               <tr key={u.id} className="border-t border-gray-800">
                 <td className="p-3">{u.email}</td>
-                <td className="p-3">{u.role}</td>
-                <td className="p-3">{u.location}</td>
+                <td className="p-3 text-green-400">{u.referred_by || "-"}</td>
+                <td className="p-3 text-gray-500">
+                  {new Date(u.created_at).toLocaleString()}
+                </td>
                 <td className="p-3">
                   <button
                     onClick={() => deleteUser(u.id)}
