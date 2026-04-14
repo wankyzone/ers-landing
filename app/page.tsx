@@ -13,7 +13,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
 
-  // Form States
+  // Shared Form States
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
@@ -36,6 +36,7 @@ export default function Home() {
           {
             client_name: fullName,
             client_phone: phone,
+            // client_email: email, // Ensure this column exists in your errands table
             title: title,
             pickup_location: location,
             delivery_location: deliveryLoc,
@@ -48,6 +49,7 @@ export default function Home() {
           {
             full_name: fullName,
             phone: phone,
+            // email: email, // Ensure this column exists in your runners table
             location: location,
             transport_type: transport,
             status: 'active'
@@ -96,7 +98,7 @@ export default function Home() {
 
       {/* FORM SECTION */}
       <section id="action-form" className="max-w-4xl mx-auto px-6 py-24">
-        <div className="bg-zinc-900/50 border border-white/10 rounded-[3rem] p-8 md:p-16">
+        <div className="bg-zinc-900/50 border border-white/10 rounded-[3rem] p-8 md:p-16 shadow-2xl shadow-green-500/5">
           
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-5xl font-bold uppercase italic tracking-tighter">
@@ -126,30 +128,39 @@ export default function Home() {
                 <h3 className="text-green-500 text-2xl font-bold uppercase">System Logged</h3>
                 <p className="text-gray-400 mt-4">
                   {role === "client" 
-                    ? "Your request is live. A dispatcher will contact you on WhatsApp shortly." 
-                    : "Runner profile created. Stay active for incoming job notifications."}
+                    ? `Order received for ${fullName}. We will contact you at ${phone} or ${email} shortly.` 
+                    : "Runner profile created. Check your email for next steps."}
                 </p>
                 <button onClick={() => setSuccess(false)} className="mt-6 text-sm text-green-500 underline uppercase font-bold">New Submission</button>
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-4">
-                {/* SHARED FIELDS */}
-                <input
-                  type="text" required placeholder="Full Name"
-                  value={fullName} onChange={(e) => setFullName(e.target.value)}
-                  className="w-full px-6 py-4 rounded-2xl bg-black border border-white/10 focus:border-green-500 outline-none"
-                />
-                <input
-                  type="tel" required placeholder="WhatsApp Phone Number"
-                  value={phone} onChange={(e) => setPhone(e.target.value)}
-                  className="w-full px-6 py-4 rounded-2xl bg-black border border-white/10 focus:border-green-500 outline-none"
-                />
+                
+                {/* SHARED IDENTITY FIELDS */}
+                <div className="space-y-4">
+                  <input
+                    type="text" required placeholder="Full Name"
+                    value={fullName} onChange={(e) => setFullName(e.target.value)}
+                    className="w-full px-6 py-4 rounded-2xl bg-black border border-white/10 focus:border-green-500 outline-none transition-all"
+                  />
+                  <input
+                    type="email" required placeholder="Email Address"
+                    value={email} onChange={(e) => setEmail(e.target.value)}
+                    className="w-full px-6 py-4 rounded-2xl bg-black border border-white/10 focus:border-green-500 outline-none transition-all"
+                  />
+                  <input
+                    type="tel" required placeholder="WhatsApp Number (e.g. 0801...)"
+                    value={phone} onChange={(e) => setPhone(e.target.value)}
+                    className="w-full px-6 py-4 rounded-2xl bg-black border border-white/10 focus:border-green-500 outline-none transition-all"
+                  />
+                </div>
 
                 {/* CLIENT SPECIFIC FIELDS */}
                 {role === "client" && (
-                  <>
+                  <div className="pt-4 border-t border-white/5 space-y-4">
+                    <label className="text-[10px] uppercase text-green-500 font-bold tracking-widest ml-2">Errand Details</label>
                     <input
-                      type="text" required placeholder="What do you need? (e.g. Delivery)"
+                      type="text" required placeholder="What do you need? (e.g. Grocery Pickup)"
                       value={title} onChange={(e) => setTitle(e.target.value)}
                       className="w-full px-6 py-4 rounded-2xl bg-black border border-white/10 focus:border-green-500 outline-none"
                     />
@@ -158,37 +169,38 @@ export default function Home() {
                         <label className="text-[10px] uppercase text-gray-500 ml-2">Pickup Zone</label>
                         <select
                           value={location} onChange={(e) => setLocation(e.target.value)}
-                          className="w-full px-6 py-4 rounded-2xl bg-black border border-white/10 outline-none"
+                          className="w-full px-6 py-4 rounded-2xl bg-black border border-white/10 outline-none appearance-none cursor-pointer"
                         >
                           {LAGOS_LOCATIONS.map((loc) => <option key={loc} value={loc}>{loc}</option>)}
                         </select>
                       </div>
                       <input
-                        type="text" required placeholder="Drop-off Address/Zone"
+                        type="text" required placeholder="Specific Drop-off Zone (e.g. Lekki Phase 1)"
                         value={deliveryLoc} onChange={(e) => setDeliveryLoc(e.target.value)}
                         className="w-full px-6 py-4 rounded-2xl bg-black border border-white/10 focus:border-green-500 outline-none"
                       />
                     </div>
-                  </>
+                  </div>
                 )}
 
                 {/* RUNNER SPECIFIC FIELDS */}
                 {role === "runner" && (
-                  <>
+                  <div className="pt-4 border-t border-white/5 space-y-4">
+                    <label className="text-[10px] uppercase text-green-500 font-bold tracking-widest ml-2">Fleet Details</label>
                     <div>
                       <label className="text-[10px] uppercase text-gray-500 ml-2">Primary Operating Zone</label>
                       <select
                         value={location} onChange={(e) => setLocation(e.target.value)}
-                        className="w-full px-6 py-4 rounded-2xl bg-black border border-white/10 outline-none"
+                        className="w-full px-6 py-4 rounded-2xl bg-black border border-white/10 outline-none appearance-none cursor-pointer"
                       >
                         {LAGOS_LOCATIONS.map((loc) => <option key={loc} value={loc}>{loc}</option>)}
                       </select>
                     </div>
                     <div>
-                      <label className="text-[10px] uppercase text-gray-500 ml-2">Transport Type</label>
+                      <label className="text-[10px] uppercase text-gray-500 ml-2">Transport Method</label>
                       <select
                         value={transport} onChange={(e) => setTransport(e.target.value)}
-                        className="w-full px-6 py-4 rounded-2xl bg-black border border-white/10 outline-none"
+                        className="w-full px-6 py-4 rounded-2xl bg-black border border-white/10 outline-none appearance-none cursor-pointer"
                       >
                         <option value="bike">Motorcycle (Bike)</option>
                         <option value="car">Car / Van</option>
@@ -196,12 +208,12 @@ export default function Home() {
                         <option value="bicycle">Bicycle</option>
                       </select>
                     </div>
-                  </>
+                  </div>
                 )}
 
                 <button
                   type="submit" disabled={loading}
-                  className="w-full bg-green-500 hover:bg-green-400 text-black font-black py-5 rounded-2xl text-lg uppercase transition-all mt-4"
+                  className="w-full bg-green-500 hover:bg-green-400 text-black font-black py-5 rounded-2xl text-lg uppercase transition-all mt-6 shadow-lg shadow-green-500/20 active:scale-[0.98]"
                 >
                   {loading ? "Processing..." : role === "client" ? "Send Runner" : "Join Fleet"}
                 </button>
