@@ -1,53 +1,57 @@
 import { NextResponse } from "next/server";
-import { Resend } from "resend";
 import { createClient } from "@supabase/supabase-js";
-
-const resend = new Resend(process.env.RESEND_API_KEY!);
+import { Resend } from "resend";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY! // ⚠️ MUST be service role
 );
+
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(req: Request) {
   try {
     const { subject, message } = await req.json();
 
-    if (!message) {
-      return NextResponse.json({ error: "Missing message" }, { status: 400 });
+    if (!subject || !message) {
+      return NextResponse.json({ error: "Missing fields" }, { status: 400 });
     }
 
-    // 1. Fetch users
+    // 🔥 STEP 1: GET ALL EMAILS FROM WAITLIST
     const { data, error } = await supabase
       .from("waitlist")
       .select("email");
 
     if (error) {
-      console.error("DB error:", error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error("Supabase error:", error);
+      return NextResponse.json({ error: "DB error" }, { status: 500 });
     }
 
     const emails = data.map((u) => u.email);
 
-    console.log("📧 Sending to:", emails);
-
     if (emails.length === 0) {
-      return NextResponse.json({ error: "No emails found" }, { status: 400 });
+      return NextResponse.json({ error: "No users found" }, { status: 400 });
     }
 
-    // 2. Send email
-    const response = await resend.emails.send({
+    console.log("📧 Sending to:", emails.length, "users");
+
+    // 🔥 STEP 2: SEND EMAILS (BATCH)
+    const result = await resend.emails.send({
       from: "ERS <onboarding@resend.dev>",
-      to: emails,
-      subject: subject || "ERS Update",
+      to: emails, // ✅ THIS is what was missing before
+      subject,
       html: `<p>${message}</p>`,
     });
 
-    console.log("Resend response:", response);
+    console.log("✅ Broadcast result:", result);
 
-    return NextResponse.json({ success: true, response });
+    return NextResponse.json({
+      success: true,
+      sent: emails.length,
+    });
+
   } catch (err: any) {
-    console.error("Broadcast crash:", err);
+    console.error("Broadcast error:", err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
