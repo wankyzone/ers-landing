@@ -9,14 +9,13 @@ export default function AuthCallback() {
       const { data, error } = await supabase.auth.getUser();
 
       if (error || !data.user) {
-        console.error("Auth error:", error);
-        window.location.href = "/login";
+        window.location.href = "/";
         return;
       }
 
       const user = data.user;
 
-      // 🔥 Create or update user in your DB
+      // Save user
       await supabase.from("users").upsert({
         id: user.id,
         email: user.email,
@@ -24,12 +23,23 @@ export default function AuthCallback() {
         auth_provider: "google",
       });
 
-      // 🚀 Redirect to next step
       window.location.href = "/select-role";
     };
 
     handleAuth();
   }, []);
 
-  return <p>Signing you in...</p>;
+  return (
+    <main className="min-h-screen bg-black text-white flex items-center justify-center">
+      <div className="text-center space-y-4">
+        <div className="animate-pulse text-green-500 text-xl font-bold">
+          ERS
+        </div>
+
+        <p className="text-gray-400">
+          Signing you in...
+        </p>
+      </div>
+    </main>
+  );
 }

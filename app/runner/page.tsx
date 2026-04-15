@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 
 const LAGOS_LOCATIONS = [
@@ -17,13 +17,40 @@ export default function RunnerPage() {
   const [location, setLocation] = useState("Lekki Phase 1");
   const [transport, setTransport] = useState("bike");
 
+  // 🔐 AUTH + ROLE GUARD
+  useEffect(() => {
+    const checkUser = async () => {
+      const { data } = await supabase.auth.getUser();
+
+      if (!data.user) {
+        window.location.href = "/";
+        return;
+      }
+
+      const { data: userData } = await supabase
+        .from("users")
+        .select("role")
+        .eq("id", data.user.id)
+        .single();
+
+      if (userData?.role !== "runner") {
+        window.location.href = "/select-role";
+      }
+    };
+
+    checkUser();
+  }, []);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
 
     try {
+      const { data: userData } = await supabase.auth.getUser();
+
       const { error } = await supabase.from("runners").insert([
         {
+          user_id: userData.user?.id, // 🔥 LINK TO USER
           full_name: name,
           phone,
           location,
