@@ -9,7 +9,8 @@ const LAGOS_LOCATIONS = [
 ];
 
 export default function RunnerPage() {
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
 
   const [name, setName] = useState("");
@@ -17,12 +18,12 @@ export default function RunnerPage() {
   const [location, setLocation] = useState("Lekki Phase 1");
   const [transport, setTransport] = useState("bike");
 
-  // 🔐 AUTH + ROLE GUARD
+  // 🔐 AUTH + ROLE GUARD (FIXED)
   useEffect(() => {
     const checkUser = async () => {
-      const { data } = await supabase.auth.getUser();
+      const { data, error } = await supabase.auth.getUser();
 
-      if (!data.user) {
+      if (error || !data.user) {
         window.location.href = "/";
         return;
       }
@@ -31,11 +32,19 @@ export default function RunnerPage() {
         .from("users")
         .select("role")
         .eq("id", data.user.id)
-        .single();
+        .maybeSingle();
 
-      if (userData?.role !== "runner") {
+      if (!userData || !userData.role) {
         window.location.href = "/select-role";
+        return;
       }
+
+      if (userData.role !== "runner") {
+        window.location.href = "/select-role";
+        return;
+      }
+
+      setLoading(false);
     };
 
     checkUser();
@@ -43,14 +52,14 @@ export default function RunnerPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
+    setSubmitting(true);
 
     try {
-      const { data: userData } = await supabase.auth.getUser();
+      const { data } = await supabase.auth.getUser();
 
       const { error } = await supabase.from("runners").insert([
         {
-          user_id: userData.user?.id, // 🔥 LINK TO USER
+          user_id: data.user?.id,
           full_name: name,
           phone,
           location,
@@ -66,7 +75,15 @@ export default function RunnerPage() {
       alert(err.message);
     }
 
-    setLoading(false);
+    setSubmitting(false);
+  }
+
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-black text-white flex items-center justify-center">
+        <p className="text-gray-400">Loading...</p>
+      </main>
+    );
   }
 
   return (
@@ -122,7 +139,7 @@ export default function RunnerPage() {
             </select>
 
             <button className="w-full bg-green-500 text-black py-3 rounded font-bold">
-              {loading ? "Processing..." : "Join Fleet"}
+              {submitting ? "Processing..." : "Join Fleet"}
             </button>
 
           </form>

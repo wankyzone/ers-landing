@@ -9,7 +9,8 @@ const LAGOS_LOCATIONS = [
 ];
 
 export default function ClientPage() {
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
 
   const [fullName, setFullName] = useState("");
@@ -18,12 +19,12 @@ export default function ClientPage() {
   const [pickup, setPickup] = useState("Lekki Phase 1");
   const [delivery, setDelivery] = useState("");
 
-  // 🔐 AUTH + ROLE GUARD
+  // 🔐 AUTH + ROLE GUARD (FIXED)
   useEffect(() => {
     const checkUser = async () => {
-      const { data } = await supabase.auth.getUser();
+      const { data, error } = await supabase.auth.getUser();
 
-      if (!data.user) {
+      if (error || !data.user) {
         window.location.href = "/";
         return;
       }
@@ -32,11 +33,20 @@ export default function ClientPage() {
         .from("users")
         .select("role")
         .eq("id", data.user.id)
-        .single();
+        .maybeSingle();
 
-      if (userData?.role !== "client") {
+      // If no role yet → go select
+      if (!userData || !userData.role) {
         window.location.href = "/select-role";
+        return;
       }
+
+      if (userData.role !== "client") {
+        window.location.href = "/select-role";
+        return;
+      }
+
+      setLoading(false);
     };
 
     checkUser();
@@ -44,14 +54,14 @@ export default function ClientPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
+    setSubmitting(true);
 
     try {
-      const { data: userData } = await supabase.auth.getUser();
+      const { data } = await supabase.auth.getUser();
 
       const { error } = await supabase.from("errands").insert([
         {
-          client_id: userData.user?.id, // 🔥 LINK TO USER
+          client_id: data.user?.id,
           client_name: fullName,
           client_phone: phone,
           title,
@@ -68,7 +78,15 @@ export default function ClientPage() {
       alert(err.message);
     }
 
-    setLoading(false);
+    setSubmitting(false);
+  }
+
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-black text-white flex items-center justify-center">
+        <p className="text-gray-400">Loading...</p>
+      </main>
+    );
   }
 
   return (
@@ -130,7 +148,7 @@ export default function ClientPage() {
             />
 
             <button className="w-full bg-green-500 text-black py-3 rounded font-bold">
-              {loading ? "Processing..." : "Send Request"}
+              {submitting ? "Processing..." : "Send Request"}
             </button>
 
           </form>
