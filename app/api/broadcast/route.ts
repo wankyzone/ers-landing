@@ -37,7 +37,7 @@ export async function POST(req: Request) {
 
     // 🔥 STEP 2: SEND EMAILS (BATCH)
     const result = await resend.emails.send({
-      from: "ERS <onboarding@resend.dev>",
+      from: "ERS <noreply@wankysoftware.com>",
       to: emails, // ✅ THIS is what was missing before
       subject,
       html: `<p>${message}</p>`,
