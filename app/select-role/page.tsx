@@ -9,22 +9,53 @@ export default function SelectRole() {
   const setRole = async (role: "client" | "runner") => {
     setLoading(true);
 
-    const { data } = await supabase.auth.getUser();
-    const user = data.user;
+    const { data, error } = await supabase.auth.getUser();
 
-    if (!user) {
+    if (error || !data.user) {
       window.location.href = "/";
       return;
     }
 
-    // Save role in DB
-    await supabase.from("users").upsert({
-      id: user.id,
-      email: user.email,
-      role: role,
-    });
+    const user = data.user;
 
-    // Redirect based on role
+    // 🔥 IMPORTANT: check if user already exists
+    const { data: existingUser } = await supabase
+      .from("users")
+      .select("*")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    let dbError;
+
+    if (existingUser) {
+      // UPDATE
+      const { error } = await supabase
+        .from("users")
+        .update({ role })
+        .eq("id", user.id);
+
+      dbError = error;
+    } else {
+      // INSERT
+      const { error } = await supabase.from("users").insert([
+        {
+          id: user.id,
+          email: user.email,
+          role,
+        },
+      ]);
+
+      dbError = error;
+    }
+
+    if (dbError) {
+      console.error("ROLE SAVE ERROR:", dbError.message);
+      alert("Failed to save role. Check console.");
+      setLoading(false);
+      return;
+    }
+
+    // 🚀 redirect
     if (role === "client") {
       window.location.href = "/client";
     } else {
@@ -47,7 +78,7 @@ export default function SelectRole() {
             className="bg-green-500 px-6 py-4 rounded-xl text-black font-bold"
             disabled={loading}
           >
-            I want to send errands
+            {loading ? "Loading..." : "I want to send errands"}
           </button>
 
           <button
@@ -55,7 +86,7 @@ export default function SelectRole() {
             className="border border-white/20 px-6 py-4 rounded-xl"
             disabled={loading}
           >
-            I want to run errands
+            {loading ? "Loading..." : "I want to run errands"}
           </button>
 
         </div>
