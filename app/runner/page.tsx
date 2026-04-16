@@ -52,12 +52,22 @@ export default function RunnerPage() {
         .on(
           "postgres_changes",
           {
-            event: "INSERT",
+            event: "*",
             schema: "public",
             table: "errands",
           },
           (payload) => {
-            setErrands((prev) => [payload.new as Errand, ...prev]);
+            if (payload.eventType === "INSERT") {
+              setErrands((prev) => [payload.new as Errand, ...prev]);
+            }
+
+            if (payload.eventType === "UPDATE") {
+              const updated = payload.new as Errand;
+
+              if (updated.status !== "pending") {
+                setErrands((prev) => prev.filter((e) => e.id !== updated.id)); 
+              }  
+            }
           }
         )
         .subscribe();
@@ -99,7 +109,30 @@ export default function RunnerPage() {
                 📍 {errand.pickup_location} → {errand.delivery_location}
               </p>
 
-              <button className="mt-4 bg-green-500 text-black px-4 py-2 rounded font-bold">
+              <button
+                onClick={async () => {
+                  const { data } = await supabase.auth.getUser();
+
+                  if (!data.user) return;
+
+                  const { error } = await supabase
+                    .from("errands")
+                    .update({
+                      status: "accepted",
+                      runner_id: data.user.id,
+                    })
+                    .eq("id", errand.id);
+
+                  if (error) {
+                    alert("Failed to accept job");
+                    return;
+                  }  
+
+                  // remove from UI immediately
+                  setErrands((prev) => prev.filter((e) => e.id !== errand.id));
+                }}              
+               className="mt-4 bg-green-500 text-black px-4 py-2 rounded font-bold"
+              >
                 Accept Job
               </button>
             </div>
