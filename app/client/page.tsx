@@ -3,15 +3,20 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 
-const LAGOS_LOCATIONS = [
-  "Lekki Phase 1", "Lekki Phase 2", "Ajah", "Victoria Island",
-  "Ikoyi", "Yaba", "Ikeja", "Surulere", "Gbagada"
-];
+type Errand = {
+  id: string;
+  title: string;
+  pickup_location: string;
+  delivery_location: string;
+  status: string;
+  runner_id: string | null;
+};
 
 export default function ClientPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [success, setSuccess] = useState(false);
+
+  const [errands, setErrands] = useState<Errand[]>([]);
 
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
@@ -19,12 +24,12 @@ export default function ClientPage() {
   const [pickup, setPickup] = useState("Lekki Phase 1");
   const [delivery, setDelivery] = useState("");
 
-  // 🔐 AUTH + ROLE GUARD (FIXED)
+  // 🔐 INIT
   useEffect(() => {
-    const checkUser = async () => {
-      const { data, error } = await supabase.auth.getUser();
+    const init = async () => {
+      const { data } = await supabase.auth.getUser();
 
-      if (error || !data.user) {
+      if (!data.user) {
         window.location.href = "/";
         return;
       }
@@ -35,21 +40,51 @@ export default function ClientPage() {
         .eq("id", data.user.id)
         .maybeSingle();
 
-      // If no role yet → go select
-      if (!userData || !userData.role) {
+      if (!userData || userData.role !== "client") {
         window.location.href = "/select-role";
         return;
       }
 
-      if (userData.role !== "client") {
-        window.location.href = "/select-role";
-        return;
-      }
+      // fetch user's errands
+      const { data: errandsData } = await supabase
+        .from("errands")
+        .select("*")
+        .eq("client_id", data.user.id)
+        .order("created_at", { ascending: false });
 
+      setErrands(errandsData || []);
       setLoading(false);
+
+      // 🔥 REALTIME
+      supabase
+        .channel("client-errands")
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "errands",
+          },
+          (payload) => {
+            const updated = payload.new as Errand;
+
+            if (updated.client_id !== data.user.id) return;
+
+            if (payload.eventType === "INSERT") {
+              setErrands((prev) => [updated, ...prev]);
+            }
+
+            if (payload.eventType === "UPDATE") {
+              setErrands((prev) =>
+                prev.map((e) => (e.id === updated.id ? updated : e))
+              );
+            }
+          }
+        )
+        .subscribe();
     };
 
-    checkUser();
+    init();
   }, []);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -73,7 +108,10 @@ export default function ClientPage() {
 
       if (error) throw error;
 
-      setSuccess(true);
+      setFullName("");
+      setPhone("");
+      setTitle("");
+      setDelivery("");
     } catch (err: any) {
       alert(err.message);
     }
@@ -93,66 +131,89 @@ export default function ClientPage() {
     <main className="min-h-screen bg-black text-white px-6 py-20">
 
       <h1 className="text-4xl font-black text-center mb-10">
-        Request an Errand
+        Your Errands
       </h1>
 
-      <div className="max-w-md mx-auto">
-        {success ? (
-          <div className="bg-green-500/10 border border-green-500/20 p-6 rounded-xl text-center">
-            <h2 className="text-green-400 font-bold text-xl">Request Submitted 🚀</h2>
-            <p className="text-gray-400 mt-2">We’ll contact you shortly.</p>
+      {/* FORM */}
+      <div className="max-w-md mx-auto mb-16">
+        <form onSubmit={handleSubmit} className="space-y-4">
+
+          <input
+            placeholder="Full Name"
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+            className="w-full p-3 bg-gray-900 border border-gray-700 rounded"
+            required
+          />
+
+          <input
+            placeholder="Phone"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            className="w-full p-3 bg-gray-900 border border-gray-700 rounded"
+            required
+          />
+
+          <input
+            placeholder="What do you need?"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className="w-full p-3 bg-gray-900 border border-gray-700 rounded"
+            required
+          />
+
+          <select
+            value={pickup}
+            onChange={(e) => setPickup(e.target.value)}
+            className="w-full p-3 bg-gray-900 border border-gray-700 rounded"
+          >
+            <option>Lekki Phase 1</option>
+            <option>Yaba</option>
+            <option>Ikeja</option>
+          </select>
+
+          <input
+            placeholder="Delivery location"
+            value={delivery}
+            onChange={(e) => setDelivery(e.target.value)}
+            className="w-full p-3 bg-gray-900 border border-gray-700 rounded"
+            required
+          />
+
+          <button className="w-full bg-green-500 text-black py-3 rounded font-bold">
+            {submitting ? "Processing..." : "Send Request"}
+          </button>
+
+        </form>
+      </div>
+
+      {/* ERRANDS LIST */}
+      <div className="max-w-2xl mx-auto space-y-4">
+
+        {errands.map((errand) => (
+          <div
+            key={errand.id}
+            className="p-5 border border-white/10 rounded-xl bg-gray-900"
+          >
+            <h2 className="text-xl font-bold">{errand.title}</h2>
+
+            <p className="text-gray-400 mt-2">
+              📍 {errand.pickup_location} → {errand.delivery_location}
+            </p>
+
+            <p className="mt-2">
+              Status:{" "}
+              <span className="text-green-400">{errand.status}</span>
+            </p>
+
+            {errand.runner_id && (
+              <p className="text-sm text-gray-500">
+                Runner assigned
+              </p>
+            )}
           </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
+        ))}
 
-            <input
-              placeholder="Full Name"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              className="w-full p-3 bg-gray-900 border border-gray-700 rounded"
-              required
-            />
-
-            <input
-              placeholder="Phone"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              className="w-full p-3 bg-gray-900 border border-gray-700 rounded"
-              required
-            />
-
-            <input
-              placeholder="What do you need?"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="w-full p-3 bg-gray-900 border border-gray-700 rounded"
-              required
-            />
-
-            <select
-              value={pickup}
-              onChange={(e) => setPickup(e.target.value)}
-              className="w-full p-3 bg-gray-900 border border-gray-700 rounded"
-            >
-              {LAGOS_LOCATIONS.map((loc) => (
-                <option key={loc}>{loc}</option>
-              ))}
-            </select>
-
-            <input
-              placeholder="Delivery location"
-              value={delivery}
-              onChange={(e) => setDelivery(e.target.value)}
-              className="w-full p-3 bg-gray-900 border border-gray-700 rounded"
-              required
-            />
-
-            <button className="w-full bg-green-500 text-black py-3 rounded font-bold">
-              {submitting ? "Processing..." : "Send Request"}
-            </button>
-
-          </form>
-        )}
       </div>
 
     </main>
