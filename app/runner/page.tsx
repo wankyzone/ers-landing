@@ -20,6 +20,21 @@ export default function RunnerPage() {
   const [totalEarnings, setTotalEarnings] = useState(0);
   const [completedCount, setCompletedCount] = useState(0);
 
+  // 🎉 NEW STATES
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [lastEarning, setLastEarning] = useState<number | null>(null);
+
+  // 🔄 reusable fetch
+  const fetchErrands = async () => {
+    const { data: errandsData } = await supabase
+      .from("errands")
+      .select("*")
+      .eq("status", "pending")
+      .order("created_at", { ascending: false });
+
+    setErrands(errandsData || []);
+  };
+
   useEffect(() => {
     const init = async () => {
       const { data } = await supabase.auth.getUser();
@@ -29,7 +44,7 @@ export default function RunnerPage() {
         return;
       }
 
-      // 💰 FETCH EARNINGS FIRST
+      // 💰 earnings
       const { data: earningsData } = await supabase
         .from("earnings")
         .select("*")
@@ -44,7 +59,7 @@ export default function RunnerPage() {
         setCompletedCount(earningsData.length);
       }
 
-      // 🔐 ROLE CHECK
+      // 🔐 role check
       const { data: userData } = await supabase
         .from("users")
         .select("role")
@@ -56,7 +71,7 @@ export default function RunnerPage() {
         return;
       }
 
-      // 🔍 ACTIVE JOB
+      // 🔍 active job
       const { data: active } = await supabase
         .from("errands")
         .select("*")
@@ -67,27 +82,17 @@ export default function RunnerPage() {
       if (active) {
         setActiveJob(active);
       } else {
-        const { data: errandsData } = await supabase
-          .from("errands")
-          .select("*")
-          .eq("status", "pending")
-          .order("created_at", { ascending: false });
-
-        setErrands(errandsData || []);
+        await fetchErrands();
       }
 
       setLoading(false);
 
-      // 🔥 REALTIME
+      // 🔥 realtime
       supabase
         .channel("errands-feed")
         .on(
           "postgres_changes",
-          {
-            event: "*",
-            schema: "public",
-            table: "errands",
-          },
+          { event: "*", schema: "public", table: "errands" },
           (payload) => {
             const updated = payload.new as Errand;
 
@@ -125,6 +130,47 @@ export default function RunnerPage() {
     init();
   }, []);
 
+  // ✅ NEW: HANDLE COMPLETE FLOW
+  const handleComplete = async () => {
+    if (!activeJob) return;
+
+    const { data } = await supabase.auth.getUser();
+    if (!data.user) return;
+
+    // update errand
+    await supabase
+      .from("errands")
+      .update({
+        status: "completed",
+        completed_at: new Date(),
+      })
+      .eq("id", activeJob.id);
+
+    // insert earning
+    await supabase.from("earnings").insert([
+      {
+        runner_id: data.user.id,
+        errand_id: activeJob.id,
+        amount: activeJob.price,
+      },
+    ]);
+
+    // 🎉 SUCCESS FLOW
+    setLastEarning(activeJob.price);
+    setShowSuccess(true);
+
+    // update stats immediately
+    setTotalEarnings((prev) => prev + activeJob.price);
+    setCompletedCount((prev) => prev + 1);
+    setActiveJob(null);
+
+    // delay → then refresh errands
+    setTimeout(async () => {
+      setShowSuccess(false);
+      await fetchErrands();
+    }, 2500);
+  };
+
   if (loading) {
     return (
       <main className="min-h-screen bg-black text-white flex items-center justify-center">
@@ -136,7 +182,7 @@ export default function RunnerPage() {
   return (
     <main className="min-h-screen bg-black text-white px-6 py-20">
 
-      {/* 💰 EARNINGS DASHBOARD */}
+      {/* 💰 DASHBOARD */}
       <div className="max-w-2xl mx-auto mb-10 grid grid-cols-2 gap-4">
         <div className="p-5 bg-gray-900 rounded-xl border border-green-500/20">
           <p className="text-gray-400 text-sm">Total Earnings</p>
@@ -167,33 +213,7 @@ export default function RunnerPage() {
           </p>
 
           <button
-            onClick={async () => {
-              const { data } = await supabase.auth.getUser();
-              if (!data.user) return;
-
-              // ✅ update errand
-              await supabase
-                .from("errands")
-                .update({
-                  status: "completed",
-                  completed_at: new Date(),
-                })
-                .eq("id", activeJob.id);
-
-              // 💰 insert earning FIRST
-              await supabase.from("earnings").insert([
-                {
-                  runner_id: data.user.id,
-                  errand_id: activeJob.id,
-                  amount: activeJob.price,
-                },
-              ]);
-
-              // ✅ update UI AFTER
-              setTotalEarnings((prev) => prev + activeJob.price);
-              setCompletedCount((prev) => prev + 1);
-              setActiveJob(null);
-            }}
+            onClick={handleComplete}
             className="mt-4 bg-green-500 text-black px-4 py-2 rounded font-bold"
           >
             Mark as Completed
@@ -210,7 +230,7 @@ export default function RunnerPage() {
 
           {errands.length === 0 ? (
             <p className="text-center text-gray-400">
-              No errands available right now.
+              No errands right now — stay online.
             </p>
           ) : (
             <div className="max-w-2xl mx-auto space-y-4">
@@ -260,6 +280,23 @@ export default function RunnerPage() {
             </div>
           )}
         </>
+      )}
+
+      {/* 🎉 SUCCESS OVERLAY */}
+      {showSuccess && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
+          <div className="bg-white text-black rounded-2xl p-6 w-[90%] max-w-sm text-center shadow-xl">
+            <h2 className="text-xl font-semibold mb-2">✅ Job Completed</h2>
+
+            <p className="text-gray-600 mb-4">
+              ₦{lastEarning?.toLocaleString()} added
+            </p>
+
+            <div className="text-sm text-gray-400 animate-pulse">
+              🔄 Finding new errands...
+            </div>
+          </div>
+        </div>
       )}
 
     </main>
