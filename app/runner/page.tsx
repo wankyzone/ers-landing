@@ -17,6 +17,8 @@ export default function RunnerPage() {
   const [loading, setLoading] = useState(true);
   const [errands, setErrands] = useState<Errand[]>([]);
   const [activeJob, setActiveJob] = useState<Errand | null>(null);
+  const [totalEarnings, setTotalEarnings] = useState(0);
+  const [completedCount, setCompletedCount] = useState(0);
 
   useEffect(() => {
     const init = async () => {
@@ -26,6 +28,17 @@ export default function RunnerPage() {
         window.location.href = "/";
         return;
       }
+    
+    const { data: earningsData } = await supabase
+      .from("earnings")
+      .select("*")
+      .eq("runner_id", data.user.id);
+      
+    if (earningsData) {
+      const total = earningsData.reduce((sum, e) => sum + Number(e.amount), 0);
+      setTotalEarnings(total);
+      setCompletedCount(earningsData.length);
+    }  
 
       // 🔐 ROLE CHECK
       const { data: userData } = await supabase
@@ -114,6 +127,24 @@ export default function RunnerPage() {
     );
   }
 
+  <div className="max-w-2xl mx-auto mb-10 grid grid-cols-2 gap-4">
+
+    <div className="p-5 bg-gray-900 rounded-xl border border-green-500/20">
+      <p className="text-gray-400 text-sm">Total Earnings</p>
+      <h2 className="text-2xl font-bold text-green-400">
+        ₦{totalEarnings}
+      </h2>
+    </div>
+
+    <div className="p-5 bg-gray-900 rounded-xl border border-white/10">
+      <p className="text-gray-400 text-sm">Completed Jobs</p>
+      <h2 className="text-2xl font-bold">
+        {completedCount}
+      </h2>
+    </div>
+
+  </div>
+
   return (
     <main className="min-h-screen bg-black text-white px-6 py-20">
 
@@ -143,6 +174,8 @@ export default function RunnerPage() {
                   completed_at: new Date(),
                 })
                 .eq("id", activeJob.id);
+                setTotalEarnings((prev) => prev + activeJob.price);
+                setCompletedCount((prev) => prev + 1);
 
               // 💰 record earnings
               await supabase.from("earnings").insert([
