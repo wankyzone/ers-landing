@@ -24,6 +24,7 @@ export default function ClientPage() {
   const [title, setTitle] = useState("");
   const [pickup, setPickup] = useState("Lekki Phase 1");
   const [delivery, setDelivery] = useState("");
+  const [price, setPrice] = useState("");
 
   // 🔐 INIT
   useEffect(() => {
@@ -103,6 +104,7 @@ export default function ClientPage() {
           title,
           pickup_location: pickup,
           delivery_location: delivery,
+          price: Number(price),
           status: "pending",
         },
       ]);
@@ -156,7 +158,7 @@ export default function ClientPage() {
           />
 
           <input
-            placeholder="What do you need?"
+            placeholder="what do you need?"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             className="w-full p-3 bg-gray-900 border border-gray-700 rounded"
@@ -178,6 +180,14 @@ export default function ClientPage() {
             value={delivery}
             onChange={(e) => setDelivery(e.target.value)}
             className="w-full p-3 bg-gray-900 border border-gray-700 rounded"
+            required
+          />
+
+          <input
+            placeholder="How much are you willing to pay? (₦)"
+            value={price}
+            onChange={(e) => setPrice(e.target.value)}
+            className="w-full p-3 bg-gray-900 boder-gray-700 rounded"
             required
           />
 
