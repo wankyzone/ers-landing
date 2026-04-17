@@ -9,6 +9,7 @@ type Errand = {
   pickup_location: string;
   delivery_location: string;
   status: string;
+  price: number;
 };
 
 export default function RunnerPage() {
@@ -108,7 +109,11 @@ export default function RunnerPage() {
               <p className="text-gray-400 mt-2">
                 📍 {errand.pickup_location} → {errand.delivery_location}
               </p>
-
+              
+              <p className="text-green-400 font-bold mt-2">
+                ₦{errand.price}
+              </p>
+              
               <button
                 onClick={async () => {
                   const { data } = await supabase.auth.getUser();
