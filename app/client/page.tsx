@@ -10,6 +10,7 @@ type Errand = {
   delivery_location: string;
   status: string;
   runner_id: string | null;
+  client_id: string | null;
 };
 
 export default function ClientPage() {
