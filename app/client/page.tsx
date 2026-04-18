@@ -12,6 +12,8 @@ type Errand = {
   status: string;
   price: number;
   user_id?: string;
+  runner_id?: string | null;
+  runner_name?: string | null;
 };
 
 export default function ClientPage() {
@@ -20,6 +22,28 @@ export default function ClientPage() {
   const [userId, setUserId] = useState<string | null>(null);
   const [clientName, setClientName] = useState<string>("Client");
   const [clientPhone, setClientPhone] = useState<string>("N/A");
+
+  // 🔄 FETCH WITH RUNNER JOIN
+  const fetchErrands = async (uid: string) => {
+    const { data } = await supabase
+      .from("errands")
+      .select(`
+        *,
+        runner:runner_id (
+          full_name
+        )
+      `)
+      .eq("user_id", uid)
+      .order("created_at", { ascending: false });
+
+    const formatted =
+      data?.map((e: any) => ({
+        ...e,
+        runner_name: e.runner?.full_name || null,
+      })) || [];
+
+    setErrands(formatted);
+  };
 
   useEffect(() => {
     const init = async () => {
@@ -32,12 +56,11 @@ export default function ClientPage() {
 
       setUserId(data.user.id);
 
-      // ✅ SET CLIENT NAME HERE
       const name =
         data.user.user_metadata?.full_name ||
         data.user.email ||
         "Client";
-      
+
       const phone =
         data.user.user_metadata?.phone ||
         data.user.phone ||
@@ -57,41 +80,22 @@ export default function ClientPage() {
         return;
       }
 
-      const { data: errandsData } = await supabase
-        .from("errands")
-        .select("*")
-        .eq("user_id", data.user.id)
-        .order("created_at", { ascending: false });
-
-      setErrands(errandsData || []);
+      await fetchErrands(data.user.id);
       setLoading(false);
 
-      // 🔥 REALTIME (FILTERED)
+      // 🔥 REALTIME
       supabase
         .channel("client-errands")
         .on(
           "postgres_changes",
-          {
-            event: "*",
-            schema: "public",
-            table: "errands",
-          },
-          (payload) => {
+          { event: "*", schema: "public", table: "errands" },
+          async (payload) => {
             const updated = payload.new as Errand;
 
             if (updated?.user_id !== data.user?.id) return;
 
-            setErrands((prev) => {
-              const exists = prev.find((e) => e.id === updated.id);
-
-              if (exists) {
-                return prev.map((e) =>
-                  e.id === updated.id ? updated : e
-                );
-              }
-
-              return [updated, ...prev];
-            });
+            // 🚀 re-fetch to get runner join (important)
+            await fetchErrands(data.user.id);
           }
         )
         .subscribe();
@@ -136,7 +140,7 @@ export default function ClientPage() {
           status: "pending",
           user_id: userId,
           client_name: clientName,
-          client_phone: clientPhone, // ✅ NOW WORKS
+          client_phone: clientPhone,
         },
       ])
       .select()
@@ -178,34 +182,10 @@ export default function ClientPage() {
         <h2 className="text-xl font-bold mb-4">Send a New Errand</h2>
 
         <form onSubmit={handleCreate} className="space-y-3">
-          <input
-            name="title"
-            placeholder="What do you need?"
-            className="w-full p-3 rounded bg-black border border-white/10"
-            required
-          />
-
-          <input
-            name="pickup"
-            placeholder="Pickup location"
-            className="w-full p-3 rounded bg-black border border-white/10"
-            required
-          />
-
-          <input
-            name="delivery"
-            placeholder="Delivery location"
-            className="w-full p-3 rounded bg-black border border-white/10"
-            required
-          />
-
-          <input
-            name="price"
-            type="number"
-            placeholder="Price (₦)"
-            className="w-full p-3 rounded bg-black border border-white/10"
-            required
-          />
+          <input name="title" placeholder="What do you need?" className="w-full p-3 rounded bg-black border border-white/10" required />
+          <input name="pickup" placeholder="Pickup location" className="w-full p-3 rounded bg-black border border-white/10" required />
+          <input name="delivery" placeholder="Delivery location" className="w-full p-3 rounded bg-black border border-white/10" required />
+          <input name="price" type="number" placeholder="Price (₦)" className="w-full p-3 rounded bg-black border border-white/10" required />
 
           <button className="w-full bg-green-500 hover:bg-green-400 transition text-black py-3 rounded font-bold">
             Send Errand
@@ -239,6 +219,13 @@ export default function ClientPage() {
               <div className="mt-3 text-sm text-gray-300">
                 {getStatusUI(errand.status)}
               </div>
+
+              {/* ✅ TRUST LAYER */}
+              {errand.status === "accepted" && errand.runner_name && (
+                <p className="text-sm text-green-400 mt-1">
+                  👤 {errand.runner_name} is handling this
+                </p>
+              )}
             </div>
           ))}
         </div>
