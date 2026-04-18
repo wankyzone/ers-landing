@@ -126,8 +126,8 @@ export default function ClientPage() {
       .single();
 
     if (error) {
-      console.error(error);
-      toast.error("Failed to create errand");
+      console.error("INSERT ERROR:", error);
+      toast.error(error.message);
       return;
     }
 
