@@ -20,11 +20,9 @@ export default function RunnerPage() {
   const [totalEarnings, setTotalEarnings] = useState(0);
   const [completedCount, setCompletedCount] = useState(0);
 
-  // 🎉 NEW STATES
   const [showSuccess, setShowSuccess] = useState(false);
   const [lastEarning, setLastEarning] = useState<number | null>(null);
 
-  // 🔄 reusable fetch
   const fetchErrands = async () => {
     const { data: errandsData } = await supabase
       .from("errands")
@@ -44,7 +42,6 @@ export default function RunnerPage() {
         return;
       }
 
-      // 💰 earnings
       const { data: earningsData } = await supabase
         .from("earnings")
         .select("*")
@@ -59,7 +56,6 @@ export default function RunnerPage() {
         setCompletedCount(earningsData.length);
       }
 
-      // 🔐 role check
       const { data: userData } = await supabase
         .from("users")
         .select("role")
@@ -71,7 +67,6 @@ export default function RunnerPage() {
         return;
       }
 
-      // 🔍 active job
       const { data: active } = await supabase
         .from("errands")
         .select("*")
@@ -87,7 +82,6 @@ export default function RunnerPage() {
 
       setLoading(false);
 
-      // 🔥 realtime
       supabase
         .channel("errands-feed")
         .on(
@@ -130,14 +124,12 @@ export default function RunnerPage() {
     init();
   }, []);
 
-  // ✅ NEW: HANDLE COMPLETE FLOW
   const handleComplete = async () => {
     if (!activeJob) return;
 
     const { data } = await supabase.auth.getUser();
     if (!data.user) return;
 
-    // update errand
     await supabase
       .from("errands")
       .update({
@@ -146,7 +138,6 @@ export default function RunnerPage() {
       })
       .eq("id", activeJob.id);
 
-    // insert earning
     await supabase.from("earnings").insert([
       {
         runner_id: data.user.id,
@@ -155,16 +146,13 @@ export default function RunnerPage() {
       },
     ]);
 
-    // 🎉 SUCCESS FLOW
     setLastEarning(activeJob.price);
     setShowSuccess(true);
 
-    // update stats immediately
     setTotalEarnings((prev) => prev + activeJob.price);
     setCompletedCount((prev) => prev + 1);
     setActiveJob(null);
 
-    // delay → then refresh errands
     setTimeout(async () => {
       setShowSuccess(false);
       await fetchErrands();
@@ -182,7 +170,7 @@ export default function RunnerPage() {
   return (
     <main className="min-h-screen bg-black text-white px-6 py-20">
 
-      {/* 💰 DASHBOARD */}
+      {/* DASHBOARD */}
       <div className="max-w-2xl mx-auto mb-10 grid grid-cols-2 gap-4">
         <div className="p-5 bg-gray-900 rounded-xl border border-green-500/20">
           <p className="text-gray-400 text-sm">Total Earnings</p>
@@ -199,7 +187,7 @@ export default function RunnerPage() {
         </div>
       </div>
 
-      {/* 🟡 ACTIVE JOB */}
+      {/* ACTIVE JOB */}
       {activeJob && (
         <div className="max-w-2xl mx-auto mb-10 p-5 border border-green-500 rounded-xl bg-gray-900">
           <h2 className="text-xl font-bold">{activeJob.title}</h2>
@@ -221,7 +209,7 @@ export default function RunnerPage() {
         </div>
       )}
 
-      {/* 🟢 AVAILABLE */}
+      {/* AVAILABLE */}
       {!activeJob && (
         <>
           <h1 className="text-4xl font-black text-center mb-10">
@@ -229,9 +217,12 @@ export default function RunnerPage() {
           </h1>
 
           {errands.length === 0 ? (
-            <p className="text-center text-gray-400">
-              No errands right now — stay online.
-            </p>
+            <div className="text-center text-gray-400">
+              <p className="text-lg mb-2">⏳ Waiting for new errands...</p>
+              <div className="animate-pulse text-sm">
+                Stay online — jobs can come in anytime
+              </div>
+            </div>
           ) : (
             <div className="max-w-2xl mx-auto space-y-4">
               {errands.map((errand) => (
@@ -282,7 +273,7 @@ export default function RunnerPage() {
         </>
       )}
 
-      {/* 🎉 SUCCESS OVERLAY */}
+      {/* SUCCESS OVERLAY */}
       {showSuccess && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
           <div className="bg-white text-black rounded-2xl p-6 w-[90%] max-w-sm text-center shadow-xl">
