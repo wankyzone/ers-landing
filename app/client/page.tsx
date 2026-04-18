@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import toast from "react-hot-toast";
 
 type Errand = {
   id: string;
@@ -10,11 +11,13 @@ type Errand = {
   delivery_location: string;
   status: string;
   price: number;
+  user_id?: string;
 };
 
 export default function ClientPage() {
   const [errands, setErrands] = useState<Errand[]>([]);
   const [loading, setLoading] = useState(true);
+  const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
     const init = async () => {
@@ -24,6 +27,8 @@ export default function ClientPage() {
         window.location.href = "/";
         return;
       }
+
+      setUserId(data.user.id);
 
       const { data: userData } = await supabase
         .from("users")
@@ -45,30 +50,33 @@ export default function ClientPage() {
       setErrands(errandsData || []);
       setLoading(false);
 
-      // 🔥 realtime updates
+      // 🔥 REALTIME (FILTERED)
       supabase
         .channel("client-errands")
         .on(
           "postgres_changes",
-          { event: "*", schema: "public", table: "errands" },
+          {
+            event: "*",
+            schema: "public",
+            table: "errands",
+          },
           (payload) => {
             const updated = payload.new as Errand;
 
-            if (updated) {
-              setErrands((prev) => {
-                const exists = prev.find((e) => e.id === updated.id);
+            // only update current user's errands
+            if (updated?.user_id !== data.user?.id) return;
 
-                // update existing
-                if (exists) {
-                  return prev.map((e) =>
-                    e.id === updated.id ? updated : e
-                  );
-                }
+            setErrands((prev) => {
+              const exists = prev.find((e) => e.id === updated.id);
 
-                // insert new (important!)
-                return [updated, ...prev];
-              });
-            }
+              if (exists) {
+                return prev.map((e) =>
+                  e.id === updated.id ? updated : e
+                );
+              }
+
+              return [updated, ...prev];
+            });
           }
         )
         .subscribe();
@@ -80,29 +88,55 @@ export default function ClientPage() {
   const getStatusUI = (status: string) => {
     switch (status) {
       case "pending":
-        return (
-          <p className="text-yellow-400 font-semibold">
-            🟡 Looking for a runner...
-          </p>
-        );
-
+        return "🟡 Looking for a runner...";
       case "accepted":
-        return (
-          <p className="text-blue-400 font-semibold">
-            🚀 Runner assigned — in progress
-          </p>
-        );
-
+        return "🚀 Runner assigned — in progress";
       case "completed":
-        return (
-          <p className="text-green-400 font-semibold">
-            ✅ Completed
-          </p>
-        );
-
+        return "✅ Completed";
       default:
-        return <p className="text-gray-400">Unknown status</p>;
+        return "Unknown status";
     }
+  };
+
+  const handleCreate = async (e: any) => {
+    e.preventDefault();
+
+    const form = e.target;
+
+    const title = form.title.value;
+    const pickup = form.pickup.value;
+    const delivery = form.delivery.value;
+    const price = form.price.value;
+
+    if (!userId) return;
+
+    const { data, error } = await supabase
+      .from("errands")
+      .insert([
+        {
+          title,
+          pickup_location: pickup,
+          delivery_location: delivery,
+          price,
+          status: "pending",
+          user_id: userId,
+        },
+      ])
+      .select()
+      .single();
+
+    if (error) {
+      console.error(error);
+      toast.error("Failed to create errand");
+      return;
+    }
+
+    // instant UI feedback
+    setErrands((prev) => [data, ...prev]);
+
+    toast.success("Errand created 🚀");
+
+    form.reset();
   };
 
   if (loading) {
@@ -116,69 +150,37 @@ export default function ClientPage() {
   return (
     <main className="min-h-screen bg-black text-white px-6 py-20">
 
-      <h1 className="text-4xl font-black text-center mb-10">
-        Your Errands
-      </h1>
+      {/* HEADER */}
+      <div className="max-w-2xl mx-auto mb-10 text-center">
+        <h1 className="text-4xl font-black">Your Errands</h1>
+        <p className="text-gray-400 mt-2">
+          Create and track errands in real-time
+        </p>
+      </div>
 
-      {/* 🚀 CREATE ERRAND FORM */}
-      <div className="max-w-2xl mx-auto mb-10 p-5 border border-white/10 rounded-xl bg-gray-900">
-        <h2 className="text-xl font-bold mb-4">Create Errand</h2>
+      {/* CREATE FORM */}
+      <div className="max-w-2xl mx-auto mb-10 p-6 border border-green-500/20 rounded-2xl bg-gray-900 shadow-lg">
+        <h2 className="text-xl font-bold mb-4">Send a New Errand</h2>
 
-        <form
-          onSubmit={async (e) => {
-            e.preventDefault();
-
-            const form = e.target as any;
-
-            const title = form.title.value;
-            const pickup = form.pickup.value;
-            const delivery = form.delivery.value;
-            const price = form.price.value;
-
-            const { data } = await supabase.auth.getUser();
-            if (!data.user) return;
-
-            const { data: newErrand } = await supabase
-              .from("errands")
-              .insert([
-                {
-                  title,
-                  pickup_location: pickup,
-                  delivery_location: delivery,
-                  price,
-                  status: "pending",
-                  user_id: data.user.id,
-                },
-              ])
-              .select()
-              .single();
-
-            // instantly update UI (no wait)
-            if (newErrand) {
-              setErrands((prev) => [newErrand, ...prev]);
-            }
-
-            form.reset();
-          }}
-        >
+        <form onSubmit={handleCreate} className="space-y-3">
           <input
             name="title"
             placeholder="What do you need?"
-            className="w-full mb-2 p-2 rounded bg-black border border-white/10"
+            className="w-full p-3 rounded bg-black border border-white/10"
             required
           />
 
           <input
             name="pickup"
             placeholder="Pickup location"
-            className="w-full mb-2 p-2 rounded bg-black border border-white/10"
+            className="w-full p-3 rounded bg-black border border-white/10"
             required
           />
 
           <input
             name="delivery"
             placeholder="Delivery location"
-            className="w-full mb-2 p-2 rounded bg-black border border-white/10"
+            className="w-full p-3 rounded bg-black border border-white/10"
             required
           />
 
@@ -186,41 +188,40 @@ export default function ClientPage() {
             name="price"
             type="number"
             placeholder="Price (₦)"
-            className="w-full mb-4 p-2 rounded bg-black border border-white/10"
+            className="w-full p-3 rounded bg-black border border-white/10"
             required
           />
 
-          <button className="w-full bg-green-500 text-black py-2 rounded font-bold">
+          <button className="w-full bg-green-500 hover:bg-green-400 transition text-black py-3 rounded font-bold">
             Send Errand
           </button>
         </form>
       </div>
 
-      {/* EMPTY STATE */}
+      {/* LIST */}
       {errands.length === 0 ? (
         <p className="text-center text-gray-400">
-          You haven’t created any errands yet.
+          No errands yet — create one above.
         </p>
       ) : (
         <div className="max-w-2xl mx-auto space-y-4">
           {errands.map((errand) => (
             <div
               key={errand.id}
-              className="p-5 border border-white/10 rounded-xl bg-gray-900"
+              className="p-6 border border-white/10 rounded-2xl bg-gray-900 hover:border-green-500/30 transition"
             >
-              <h2 className="text-xl font-bold">
-                {errand.title}
-              </h2>
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-bold">{errand.title}</h2>
+                <span className="text-green-400 font-bold">
+                  ₦{errand.price}
+                </span>
+              </div>
 
               <p className="text-gray-400 mt-2">
                 📍 {errand.pickup_location} → {errand.delivery_location}
               </p>
 
-              <p className="text-green-400 font-bold mt-2">
-                ₦{errand.price}
-              </p>
-
-              <div className="mt-3">
+              <div className="mt-3 text-sm text-gray-300">
                 {getStatusUI(errand.status)}
               </div>
             </div>
