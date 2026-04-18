@@ -19,6 +19,7 @@ export default function ClientPage() {
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
   const [clientName, setClientName] = useState<string>("Client");
+  const [clientPhone, setClientPhone] = useState<string>("N/A");
 
   useEffect(() => {
     const init = async () => {
@@ -36,8 +37,14 @@ export default function ClientPage() {
         data.user.user_metadata?.full_name ||
         data.user.email ||
         "Client";
+      
+      const phone =
+        data.user.user_metadata?.phone ||
+        data.user.phone ||
+        "N/A";
 
       setClientName(name);
+      setClientPhone(phone);
 
       const { data: userData } = await supabase
         .from("users")
@@ -128,7 +135,8 @@ export default function ClientPage() {
           price,
           status: "pending",
           user_id: userId,
-          client_name: clientName, // ✅ NOW WORKS
+          client_name: clientName,
+          client_phone: clientPhone, // ✅ NOW WORKS
         },
       ])
       .select()
