@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
+import toast from "react-hot-toast"; // ✅ NEW
 
 type Errand = {
   id: string;
@@ -90,8 +91,11 @@ export default function RunnerPage() {
           (payload) => {
             const updated = payload.new as Errand;
 
+            // ✅ NEW ERRAND ALERT (THIS IS THE KEY ADDITION)
             if (payload.eventType === "INSERT" && updated.status === "pending") {
               setErrands((prev) => [updated, ...prev]);
+
+              toast.success(`🚀 ${updated.title} - ₦${updated.price}`);
             }
 
             if (payload.eventType === "UPDATE") {
@@ -170,7 +174,6 @@ export default function RunnerPage() {
   return (
     <main className="min-h-screen bg-black text-white px-6 py-20">
 
-      {/* DASHBOARD */}
       <div className="max-w-2xl mx-auto mb-10 grid grid-cols-2 gap-4">
         <div className="p-5 bg-gray-900 rounded-xl border border-green-500/20">
           <p className="text-gray-400 text-sm">Total Earnings</p>
@@ -187,7 +190,6 @@ export default function RunnerPage() {
         </div>
       </div>
 
-      {/* ACTIVE JOB */}
       {activeJob && (
         <div className="max-w-2xl mx-auto mb-10 p-5 border border-green-500 rounded-xl bg-gray-900">
           <h2 className="text-xl font-bold">{activeJob.title}</h2>
@@ -209,7 +211,6 @@ export default function RunnerPage() {
         </div>
       )}
 
-      {/* AVAILABLE */}
       {!activeJob && (
         <>
           <h1 className="text-4xl font-black text-center mb-10">
@@ -273,7 +274,6 @@ export default function RunnerPage() {
         </>
       )}
 
-      {/* SUCCESS OVERLAY */}
       {showSuccess && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
           <div className="bg-white text-black rounded-2xl p-6 w-[90%] max-w-sm text-center shadow-xl">
@@ -289,7 +289,6 @@ export default function RunnerPage() {
           </div>
         </div>
       )}
-
     </main>
   );
 }
