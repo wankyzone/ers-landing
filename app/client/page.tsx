@@ -25,7 +25,6 @@ export default function ClientPage() {
         return;
       }
 
-      // 🔐 ensure client role
       const { data: userData } = await supabase
         .from("users")
         .select("role")
@@ -37,7 +36,6 @@ export default function ClientPage() {
         return;
       }
 
-      // 📦 fetch errands for this client
       const { data: errandsData } = await supabase
         .from("errands")
         .select("*")
@@ -57,11 +55,19 @@ export default function ClientPage() {
             const updated = payload.new as Errand;
 
             if (updated) {
-              setErrands((prev) =>
-                prev.map((e) =>
-                  e.id === updated.id ? updated : e
-                )
-              );
+              setErrands((prev) => {
+                const exists = prev.find((e) => e.id === updated.id);
+
+                // update existing
+                if (exists) {
+                  return prev.map((e) =>
+                    e.id === updated.id ? updated : e
+                  );
+                }
+
+                // insert new (important!)
+                return [updated, ...prev];
+              });
             }
           }
         )
@@ -95,11 +101,7 @@ export default function ClientPage() {
         );
 
       default:
-        return (
-          <p className="text-gray-400">
-            Unknown status
-          </p>
-        );
+        return <p className="text-gray-400">Unknown status</p>;
     }
   };
 
@@ -118,6 +120,83 @@ export default function ClientPage() {
         Your Errands
       </h1>
 
+      {/* 🚀 CREATE ERRAND FORM */}
+      <div className="max-w-2xl mx-auto mb-10 p-5 border border-white/10 rounded-xl bg-gray-900">
+        <h2 className="text-xl font-bold mb-4">Create Errand</h2>
+
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault();
+
+            const form = e.target as any;
+
+            const title = form.title.value;
+            const pickup = form.pickup.value;
+            const delivery = form.delivery.value;
+            const price = form.price.value;
+
+            const { data } = await supabase.auth.getUser();
+            if (!data.user) return;
+
+            const { data: newErrand } = await supabase
+              .from("errands")
+              .insert([
+                {
+                  title,
+                  pickup_location: pickup,
+                  delivery_location: delivery,
+                  price,
+                  status: "pending",
+                  user_id: data.user.id,
+                },
+              ])
+              .select()
+              .single();
+
+            // instantly update UI (no wait)
+            if (newErrand) {
+              setErrands((prev) => [newErrand, ...prev]);
+            }
+
+            form.reset();
+          }}
+        >
+          <input
+            name="title"
+            placeholder="What do you need?"
+            className="w-full mb-2 p-2 rounded bg-black border border-white/10"
+            required
+          />
+
+          <input
+            name="pickup"
+            placeholder="Pickup location"
+            className="w-full mb-2 p-2 rounded bg-black border border-white/10"
+            required
+          />
+
+          <input
+            name="delivery"
+            placeholder="Delivery location"
+            className="w-full mb-2 p-2 rounded bg-black border border-white/10"
+            required
+          />
+
+          <input
+            name="price"
+            type="number"
+            placeholder="Price (₦)"
+            className="w-full mb-4 p-2 rounded bg-black border border-white/10"
+            required
+          />
+
+          <button className="w-full bg-green-500 text-black py-2 rounded font-bold">
+            Send Errand
+          </button>
+        </form>
+      </div>
+
+      {/* EMPTY STATE */}
       {errands.length === 0 ? (
         <p className="text-center text-gray-400">
           You haven’t created any errands yet.
