@@ -18,6 +18,7 @@ export default function ClientPage() {
   const [errands, setErrands] = useState<Errand[]>([]);
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
+  const [clientName, setClientName] = useState<string>("Client");
 
   useEffect(() => {
     const init = async () => {
@@ -29,6 +30,14 @@ export default function ClientPage() {
       }
 
       setUserId(data.user.id);
+
+      // ✅ SET CLIENT NAME HERE
+      const name =
+        data.user.user_metadata?.full_name ||
+        data.user.email ||
+        "Client";
+
+      setClientName(name);
 
       const { data: userData } = await supabase
         .from("users")
@@ -63,7 +72,6 @@ export default function ClientPage() {
           (payload) => {
             const updated = payload.new as Errand;
 
-            // only update current user's errands
             if (updated?.user_id !== data.user?.id) return;
 
             setErrands((prev) => {
@@ -120,6 +128,7 @@ export default function ClientPage() {
           price,
           status: "pending",
           user_id: userId,
+          client_name: clientName, // ✅ NOW WORKS
         },
       ])
       .select()
@@ -131,9 +140,7 @@ export default function ClientPage() {
       return;
     }
 
-    // instant UI feedback
     setErrands((prev) => [data, ...prev]);
-
     toast.success("Errand created 🚀");
 
     form.reset();
