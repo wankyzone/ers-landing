@@ -4,63 +4,62 @@ import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 export default function SelectRole() {
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState<"client" | "runner" | null>(null);
 
   const setRole = async (role: "client" | "runner") => {
-    setLoading(true);
+    setLoading(role);
 
-    const { data, error } = await supabase.auth.getUser();
+    // ✅ ALWAYS use session
+    const { data: sessionData, error: sessionError } =
+      await supabase.auth.getSession();
 
-    if (error || !data.user) {
+    const user = sessionData?.session?.user;
+
+    if (sessionError || !user) {
+      console.error("SESSION ERROR:", sessionError);
       window.location.href = "/";
       return;
     }
 
-    const user = data.user;
-
-    // 🔥 IMPORTANT: check if user already exists
-    const { data: existingUser } = await supabase
+    // ✅ SINGLE ATOMIC UPSERT
+    const { error } = await supabase
       .from("users")
-      .select("*")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    let dbError;
-
-    if (existingUser) {
-      // UPDATE
-      const { error } = await supabase
-        .from("users")
-        .update({ role })
-        .eq("id", user.id);
-
-      dbError = error;
-    } else {
-      // INSERT
-      const { error } = await supabase.from("users").insert([
+      .upsert(
         {
           id: user.id,
           email: user.email,
-          role,
+          role: role,
         },
-      ]);
+        { onConflict: "id" }
+      );
 
-      dbError = error;
-    }
+    if (error) {
+      console.error("ROLE SAVE ERROR:", error);
 
-    if (dbError) {
-      console.error("ROLE SAVE ERROR:", dbError.message);
       alert("Failed to save role. Check console.");
-      setLoading(false);
+
+      setLoading(null);
       return;
     }
 
-    // 🚀 redirect
-    if (role === "client") {
-      window.location.href = "/client";
-    } else {
-      window.location.href = "/runner";
+    // ✅ HARD VERIFY (prevents redirect loop)
+    const { data: verify, error: verifyError } = await supabase
+      .from("users")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+
+    if (verifyError || !verify) {
+      console.error("VERIFY ERROR:", verifyError);
+      alert("Role saved but could not verify. Check RLS.");
+      setLoading(null);
+      return;
     }
+
+    console.log("ROLE VERIFIED:", verify.role);
+
+    // 🚀 SAFE REDIRECT
+    window.location.href = verify.role === "client" ? "/client" : "/runner";
   };
 
   return (
@@ -76,17 +75,17 @@ export default function SelectRole() {
           <button
             onClick={() => setRole("client")}
             className="bg-green-500 px-6 py-4 rounded-xl text-black font-bold"
-            disabled={loading}
+            disabled={loading !== null}
           >
-            {loading ? "Loading..." : "I want to send errands"}
+            {loading === "client" ? "Setting up..." : "I want to send errands"}
           </button>
 
           <button
             onClick={() => setRole("runner")}
             className="border border-white/20 px-6 py-4 rounded-xl"
-            disabled={loading}
+            disabled={loading !== null}
           >
-            {loading ? "Loading..." : "I want to run errands"}
+            {loading === "runner" ? "Setting up..." : "I want to run errands"}
           </button>
 
         </div>
