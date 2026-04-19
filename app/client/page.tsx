@@ -11,24 +11,34 @@ type Errand = {
   delivery_location: string;
   status: string;
   price: number;
-  user_id?: string;
-  runner_id?: string | null;
+  user_id: string;
   runner_name?: string | null;
 };
 
 export default function ClientPage() {
   const [errands, setErrands] = useState<Errand[]>([]);
   const [loading, setLoading] = useState(true);
-  const [userId, setUserId] = useState<string | null>(null);
-  const [clientName, setClientName] = useState("Client");
-  const [clientPhone, setClientPhone] = useState("N/A");
   const [creating, setCreating] = useState(false);
 
-  // 🔄 FETCH (WITH JOIN)
+  const [clientName, setClientName] = useState("Client");
+  const [clientPhone, setClientPhone] = useState("N/A");
+
+  // -----------------------------
+  // FETCH ERRANDS (SOURCE OF TRUTH)
+  // -----------------------------
   const fetchErrands = async (uid: string) => {
     const { data, error } = await supabase
       .from("errands")
-      .select("*")
+      .select(`
+        id,
+        title,
+        pickup_location,
+        delivery_location,
+        status,
+        price,
+        user_id,
+        runner_id
+      `)
       .eq("user_id", uid)
       .order("created_at", { ascending: false });
 
@@ -37,64 +47,73 @@ export default function ClientPage() {
       return;
     }
 
-    const formatted =
-      (data || []).map((e: any) => ({
-        ...e,
-        runner_name: e.runner?.full_name ?? null,
-      }));
+    setErrands(data || []);
   };
 
+  // -----------------------------
+  // INIT
+  // -----------------------------
   useEffect(() => {
     const init = async () => {
-      const { data } = await supabase.auth.getUser();
+      const { data: sessionData, error } = await supabase.auth.getSession();
 
-      if (!data.user) {
+      const user = sessionData?.session?.user;
+
+      if (!user) {
         window.location.href = "/";
         return;
       }
 
-      setUserId(data.user.id);
+      const userId = user.id;
 
-      const name =
-        data.user.user_metadata?.full_name ||
-        data.user.email ||
-        "Client";
-
-      const phone =
-        data.user.user_metadata?.phone ||
-        data.user.phone ||
-        "N/A";
-
-      setClientName(name);
-      setClientPhone(phone);
-
+      // role check
       const { data: userData } = await supabase
         .from("users")
         .select("role")
-        .eq("id", data.user.id)
+        .eq("id", userId)
         .maybeSingle();
 
       if (!userData || userData.role !== "client") {
         window.location.href = "/select-role";
         return;
       }
-      
-      if (!userId) return;
+
+      // metadata
+      setClientName(
+        user.user_metadata?.full_name || user.email || "Client"
+      );
+
+      setClientPhone(user.user_metadata?.phone || "N/A");
+
+      // initial fetch
       await fetchErrands(userId);
+
       setLoading(false);
 
-      // 🔥 REALTIME
+      // -----------------------------
+      // REALTIME (FIXED)
+      // -----------------------------
       supabase
         .channel("client-errands")
         .on(
           "postgres_changes",
           { event: "*", schema: "public", table: "errands" },
-          async (payload) => {
+          (payload) => {
             const updated = payload.new as Errand;
 
-            if (updated?.user_id !== data.user?.id) return;
+            if (!updated || updated.user_id !== userId) return;
 
-            await fetchErrands(data.user.id);
+            setErrands((prev) => {
+              const exists = prev.find((e) => e.id === updated.id);
+
+              if (exists) {
+                return prev.map((e) =>
+                  e.id === updated.id ? updated : e
+                );
+              }
+
+              return [updated, ...prev];
+            });
           }
         )
         .subscribe();
@@ -103,6 +122,58 @@ export default function ClientPage() {
     init();
   }, []);
 
+  // -----------------------------
+  // CREATE ERRAND
+  // -----------------------------
+  const handleCreate = async (e: any) => {
+    e.preventDefault();
+    setCreating(true);
+
+    const form = e.target;
+
+    const { data: sessionData } = await supabase.auth.getSession();
+    const user = sessionData?.session?.user;
+
+    if (!user) {
+      toast.error("Not authenticated");
+      setCreating(false);
+      return;
+    }
+
+    const payload = {
+      title: form.title.value,
+      pickup_location: form.pickup.value,
+      delivery_location: form.delivery.value,
+      price: Number(form.price.value),
+      status: "pending",
+      user_id: user.id,
+      client_name: clientName,
+      client_phone: clientPhone,
+    };
+
+    const { error } = await supabase
+      .from("errands")
+      .insert([payload]);
+
+    setCreating(false);
+
+    if (error) {
+      console.error("INSERT ERROR:", error);
+      toast.error(error.message);
+      return;
+    }
+
+    toast.success("Errand created 🚀");
+
+    form.reset();
+
+    // IMPORTANT: re-fetch to avoid sync drift
+    await fetchErrands(user.id);
+  };
+
+  // -----------------------------
+  // STATUS UI
+  // -----------------------------
   const getStatusUI = (status: string) => {
     switch (status) {
       case "pending":
@@ -116,47 +187,9 @@ export default function ClientPage() {
     }
   };
 
-  const handleCreate = async (e: any) => {
-    e.preventDefault();
-    if (!userId) return;
-
-    setCreating(true);
-
-    const form = e.target;
-
-    const payload = {
-      title: form.title.value,
-      pickup_location: form.pickup.value,
-      delivery_location: form.delivery.value,
-      price: Number(form.price.value),
-      status: "pending",
-      user_id: userId,
-      client_name: clientName,
-      client_phone: clientPhone,
-    };
-
-    const { data, error } = await supabase
-      .from("errands")
-      .insert([payload])
-      .select()
-      .single();
-
-    setCreating(false);
-
-    if (error) {
-      console.error("INSERT ERROR:", error);
-      toast.error(error.message);
-      return;
-    }
-
-    toast.success("Errand sent 🚀");
-
-    // 🚀 DO NOT manually insert into state
-    // let realtime + fetch handle it
-
-    form.reset();
-  };
-
+  // -----------------------------
+  // UI
+  // -----------------------------
   if (loading) {
     return (
       <main className="min-h-screen bg-black text-white flex items-center justify-center">
@@ -172,13 +205,13 @@ export default function ClientPage() {
       <div className="max-w-2xl mx-auto mb-10 text-center">
         <h1 className="text-4xl font-black">Your Errands</h1>
         <p className="text-gray-400 mt-2">
-          Real-time tracking • Trusted runners • Instant updates
+          Real-time tracking • Lagos dispatch system
         </p>
       </div>
 
-      {/* CREATE */}
+      {/* CREATE FORM */}
       <div className="max-w-2xl mx-auto mb-10 p-6 border border-green-500/20 rounded-2xl bg-gray-900">
-        <h2 className="text-xl font-bold mb-4">Send Errand</h2>
+        <h2 className="text-xl font-bold mb-4">Create Errand</h2>
 
         <form onSubmit={handleCreate} className="space-y-3">
           <input name="title" placeholder="What do you need?" className="w-full p-3 rounded bg-black border border-white/10" required />
@@ -188,7 +221,7 @@ export default function ClientPage() {
 
           <button
             disabled={creating}
-            className="w-full bg-green-500 hover:bg-green-400 transition text-black py-3 rounded font-bold"
+            className="w-full bg-green-500 text-black py-3 rounded font-bold"
           >
             {creating ? "Sending..." : "Send Errand"}
           </button>
@@ -197,10 +230,9 @@ export default function ClientPage() {
 
       {/* LIST */}
       {errands.length === 0 ? (
-        <div className="text-center text-gray-400">
-          <p className="text-lg">No errands yet</p>
-          <p className="text-sm mt-1">Create one above to get started</p>
-        </div>
+        <p className="text-center text-gray-400">
+          No errands yet — create one above.
+        </p>
       ) : (
         <div className="max-w-2xl mx-auto space-y-4">
           {errands.map((errand) => (
@@ -219,26 +251,14 @@ export default function ClientPage() {
                 📍 {errand.pickup_location} → {errand.delivery_location}
               </p>
 
-              <div className="mt-3 text-sm text-gray-300">
+              <p className="mt-3 text-sm text-gray-300">
                 {getStatusUI(errand.status)}
-              </div>
-
-              {/* 🔥 TRUST LAYER */}
-              {errand.status === "accepted" && (
-                <div className="mt-2 text-sm text-green-400">
-                  👤 {errand.runner_name || "Runner assigned"}
-                </div>
-              )}
-
-              {errand.status === "completed" && (
-                <div className="mt-2 text-sm text-green-500 font-semibold">
-                  🎉 Delivered successfully
-                </div>
-              )}
+              </p>
             </div>
           ))}
         </div>
       )}
+
     </main>
   );
 }
