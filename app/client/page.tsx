@@ -28,12 +28,7 @@ export default function ClientPage() {
   const fetchErrands = async (uid: string) => {
     const { data, error } = await supabase
       .from("errands")
-      .select(`
-        *,
-        runner:runner_id (
-          full_name
-        )
-      `)
+      .select("*")
       .eq("user_id", uid)
       .order("created_at", { ascending: false });
 
@@ -43,12 +38,10 @@ export default function ClientPage() {
     }
 
     const formatted =
-      data?.map((e: any) => ({
+      (data || []).map((e: any) => ({
         ...e,
-        runner_name: e.runner?.full_name || null,
-      })) || [];
-
-    setErrands(formatted);
+        runner_name: e.runner?.full_name ?? null,
+      }));
   };
 
   useEffect(() => {
@@ -85,8 +78,9 @@ export default function ClientPage() {
         window.location.href = "/select-role";
         return;
       }
-
-      await fetchErrands(data.user.id);
+      
+      if (!userId) return;
+      await fetchErrands(userId);
       setLoading(false);
 
       // 🔥 REALTIME
