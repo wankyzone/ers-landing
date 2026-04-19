@@ -20,12 +20,13 @@ export default function ClientPage() {
   const [errands, setErrands] = useState<Errand[]>([]);
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
-  const [clientName, setClientName] = useState<string>("Client");
-  const [clientPhone, setClientPhone] = useState<string>("N/A");
+  const [clientName, setClientName] = useState("Client");
+  const [clientPhone, setClientPhone] = useState("N/A");
+  const [creating, setCreating] = useState(false);
 
-  // 🔄 FETCH WITH RUNNER JOIN
+  // 🔄 FETCH (WITH JOIN)
   const fetchErrands = async (uid: string) => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("errands")
       .select(`
         *,
@@ -35,6 +36,11 @@ export default function ClientPage() {
       `)
       .eq("user_id", uid)
       .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("FETCH ERROR:", error);
+      return;
+    }
 
     const formatted =
       data?.map((e: any) => ({
@@ -94,7 +100,6 @@ export default function ClientPage() {
 
             if (updated?.user_id !== data.user?.id) return;
 
-            // 🚀 re-fetch to get runner join (important)
             await fetchErrands(data.user.id);
           }
         )
@@ -107,44 +112,42 @@ export default function ClientPage() {
   const getStatusUI = (status: string) => {
     switch (status) {
       case "pending":
-        return "🟡 Looking for a runner...";
+        return "🟡 Waiting for a runner...";
       case "accepted":
-        return "🚀 Runner assigned — in progress";
+        return "🚀 Runner assigned";
       case "completed":
         return "✅ Completed";
       default:
-        return "Unknown status";
+        return "Unknown";
     }
   };
 
   const handleCreate = async (e: any) => {
     e.preventDefault();
+    if (!userId) return;
+
+    setCreating(true);
 
     const form = e.target;
 
-    const title = form.title.value;
-    const pickup = form.pickup.value;
-    const delivery = form.delivery.value;
-    const price = form.price.value;
-
-    if (!userId) return;
+    const payload = {
+      title: form.title.value,
+      pickup_location: form.pickup.value,
+      delivery_location: form.delivery.value,
+      price: Number(form.price.value),
+      status: "pending",
+      user_id: userId,
+      client_name: clientName,
+      client_phone: clientPhone,
+    };
 
     const { data, error } = await supabase
       .from("errands")
-      .insert([
-        {
-          title,
-          pickup_location: pickup,
-          delivery_location: delivery,
-          price,
-          status: "pending",
-          user_id: userId,
-          client_name: clientName,
-          client_phone: clientPhone,
-        },
-      ])
+      .insert([payload])
       .select()
       .single();
+
+    setCreating(false);
 
     if (error) {
       console.error("INSERT ERROR:", error);
@@ -152,8 +155,10 @@ export default function ClientPage() {
       return;
     }
 
-    setErrands((prev) => [data, ...prev]);
-    toast.success("Errand created 🚀");
+    toast.success("Errand sent 🚀");
+
+    // 🚀 DO NOT manually insert into state
+    // let realtime + fetch handle it
 
     form.reset();
   };
@@ -173,13 +178,13 @@ export default function ClientPage() {
       <div className="max-w-2xl mx-auto mb-10 text-center">
         <h1 className="text-4xl font-black">Your Errands</h1>
         <p className="text-gray-400 mt-2">
-          Create and track errands in real-time
+          Real-time tracking • Trusted runners • Instant updates
         </p>
       </div>
 
-      {/* CREATE FORM */}
-      <div className="max-w-2xl mx-auto mb-10 p-6 border border-green-500/20 rounded-2xl bg-gray-900 shadow-lg">
-        <h2 className="text-xl font-bold mb-4">Send a New Errand</h2>
+      {/* CREATE */}
+      <div className="max-w-2xl mx-auto mb-10 p-6 border border-green-500/20 rounded-2xl bg-gray-900">
+        <h2 className="text-xl font-bold mb-4">Send Errand</h2>
 
         <form onSubmit={handleCreate} className="space-y-3">
           <input name="title" placeholder="What do you need?" className="w-full p-3 rounded bg-black border border-white/10" required />
@@ -187,25 +192,29 @@ export default function ClientPage() {
           <input name="delivery" placeholder="Delivery location" className="w-full p-3 rounded bg-black border border-white/10" required />
           <input name="price" type="number" placeholder="Price (₦)" className="w-full p-3 rounded bg-black border border-white/10" required />
 
-          <button className="w-full bg-green-500 hover:bg-green-400 transition text-black py-3 rounded font-bold">
-            Send Errand
+          <button
+            disabled={creating}
+            className="w-full bg-green-500 hover:bg-green-400 transition text-black py-3 rounded font-bold"
+          >
+            {creating ? "Sending..." : "Send Errand"}
           </button>
         </form>
       </div>
 
       {/* LIST */}
       {errands.length === 0 ? (
-        <p className="text-center text-gray-400">
-          No errands yet — create one above.
-        </p>
+        <div className="text-center text-gray-400">
+          <p className="text-lg">No errands yet</p>
+          <p className="text-sm mt-1">Create one above to get started</p>
+        </div>
       ) : (
         <div className="max-w-2xl mx-auto space-y-4">
           {errands.map((errand) => (
             <div
               key={errand.id}
-              className="p-6 border border-white/10 rounded-2xl bg-gray-900 hover:border-green-500/30 transition"
+              className="p-6 border border-white/10 rounded-2xl bg-gray-900"
             >
-              <div className="flex justify-between items-center">
+              <div className="flex justify-between">
                 <h2 className="text-xl font-bold">{errand.title}</h2>
                 <span className="text-green-400 font-bold">
                   ₦{errand.price}
@@ -220,17 +229,22 @@ export default function ClientPage() {
                 {getStatusUI(errand.status)}
               </div>
 
-              {/* ✅ TRUST LAYER */}
-              {errand.status === "accepted" && errand.runner_name && (
-                <p className="text-sm text-green-400 mt-1">
-                  👤 {errand.runner_name} is handling this
-                </p>
+              {/* 🔥 TRUST LAYER */}
+              {errand.status === "accepted" && (
+                <div className="mt-2 text-sm text-green-400">
+                  👤 {errand.runner_name || "Runner assigned"}
+                </div>
+              )}
+
+              {errand.status === "completed" && (
+                <div className="mt-2 text-sm text-green-500 font-semibold">
+                  🎉 Delivered successfully
+                </div>
               )}
             </div>
           ))}
         </div>
       )}
-
     </main>
   );
 }
