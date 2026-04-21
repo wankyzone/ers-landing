@@ -20,32 +20,46 @@ export default function LoginPage() {
       type: "sms",
     });
 
-    if (!error) {
-      window.location.href = "/"; // redirect
-    }
+    if (!error) window.location.href = "/";
   };
 
   return (
-    <div className="p-6">
-      {step === "phone" ? (
-        <>
-          <input
-            placeholder="+234..."
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-          />
-          <button onClick={sendOtp}>Send OTP</button>
-        </>
-      ) : (
-        <>
-          <input
-            placeholder="Enter OTP"
-            value={otp}
-            onChange={(e) => setOtp(e.target.value)}
-          />
-          <button onClick={verifyOtp}>Verify</button>
-        </>
-      )}
+    <div className="flex items-center justify-center min-h-screen bg-black text-white">
+      <div className="bg-zinc-900 p-6 rounded-xl w-full max-w-md shadow-xl">
+        <h1 className="text-xl font-bold mb-4">Login to ERS</h1>
+
+        {step === "phone" ? (
+          <>
+            <input
+              className="w-full p-2 mb-4 bg-black border border-zinc-700 rounded"
+              placeholder="+234..."
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+            />
+            <button
+              onClick={sendOtp}
+              className="w-full bg-green-600 py-2 rounded"
+            >
+              Send OTP
+            </button>
+          </>
+        ) : (
+          <>
+            <input
+              className="w-full p-2 mb-4 bg-black border border-zinc-700 rounded"
+              placeholder="Enter OTP"
+              value={otp}
+              onChange={(e) => setOtp(e.target.value)}
+            />
+            <button
+              onClick={verifyOtp}
+              className="w-full bg-green-600 py-2 rounded"
+            >
+              Verify OTP
+            </button>
+          </>
+        )}
+      </div>
     </div>
   );
 }

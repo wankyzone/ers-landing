@@ -18,6 +18,7 @@ export default function ClientGuard({ children }: any) {
       if (status === "NO_AUTH") router.push("/login");
       if (status === "NO_KYC") router.push("/kyc");
       if (status === "PENDING_KYC") router.push("/kyc/pending");
+      if (status === "ADMIN") return;
     };
 
     check();
