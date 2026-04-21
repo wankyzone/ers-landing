@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import toast from "react-hot-toast"; // ✅ NEW
+import { channel } from "diagnostics_channel";
 
 type Errand = {
   id: string;
@@ -24,6 +25,8 @@ export default function RunnerPage() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [lastEarning, setLastEarning] = useState<number | null>(null);
 
+  const [user, setUser] = useState<any>(null);
+
   const fetchErrands = async () => {
     const { data: errandsData } = await supabase
       .from("errands")
@@ -42,6 +45,8 @@ export default function RunnerPage() {
         window.location.href = "/";
         return;
       }
+    
+      setUser(data.user);
 
       const { data: earningsData } = await supabase
         .from("earnings")
@@ -83,7 +88,7 @@ export default function RunnerPage() {
 
       setLoading(false);
 
-      supabase
+      const channel = supabase
         .channel("errands-feed")
         .on(
           "postgres_changes",
@@ -127,6 +132,32 @@ export default function RunnerPage() {
 
     init();
   }, []);
+  
+  useEffect(() => {
+    const channel = supabase
+      .channel("runner-notifications")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "notifications",
+        },
+        (payload) => {
+          const notification = payload.new;
+
+          // Only show if it's for this user
+          if (notification.user_id === user?.id) {
+            alert(notification.title + ": " + notification.message);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+        };  
+  }, []);
 
   const handleComplete = async () => {
     if (!activeJob) return;
@@ -150,6 +181,9 @@ export default function RunnerPage() {
       },
     ]);
 
+
+    await fetch("/api/run-fraud-check");
+    
     setLastEarning(activeJob.price);
     setShowSuccess(true);
 
