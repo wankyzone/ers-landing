@@ -21,13 +21,29 @@ export default function KYCPage() {
   };
 
   return (
-    <div className="p-6">
-      <input
-        placeholder="Full Name"
-        onChange={(e) => setName(e.target.value)}
-      />
-      <input placeholder="NIN" onChange={(e) => setNin(e.target.value)} />
-      <button onClick={submitKyc}>Submit KYC</button>
+    <div className="flex items-center justify-center min-h-screen bg-black text-white">
+      <div className="bg-zinc-900 p-6 rounded-xl w-full max-w-md shadow-lg">
+        <h1 className="text-xl font-bold mb-4">Complete Your KYC</h1>
+
+        <input
+          className="w-full p-2 mb-3 bg-black border border-zinc-700 rounded"
+          placeholder="Full Name"
+          onChange={(e) => setName(e.target.value)}
+        />
+
+        <input
+          className="w-full p-2 mb-4 bg-black border border-zinc-700 rounded"
+          placeholder="NIN"
+          onChange={(e) => setNin(e.target.value)}
+        />
+
+        <button
+          onClick={submitKyc}
+          className="w-full bg-green-600 py-2 rounded font-semibold"
+        >
+          Submit KYC
+        </button>
+      </div>
     </div>
   );
 }

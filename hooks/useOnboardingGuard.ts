@@ -5,6 +5,15 @@ export async function useOnboardingGuard() {
 
   if (!user.user) return "NO_AUTH";
 
+  // ✅ check role
+  const { data: profile } = await supabase
+    .from("users")
+    .select("role")
+    .eq("id", user.user.id)
+    .single();
+
+  if (profile?.role === "admin") return "OK";
+
   const { data: kyc } = await supabase
     .from("kyc_profiles")
     .select("*")
