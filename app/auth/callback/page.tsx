@@ -10,21 +10,27 @@ export default function AuthCallbackPage() {
 
   useEffect(() => {
     const run = async () => {
-      // 🔥 wait until session is actually available
-      let attempts = 0;
       let session = null;
 
-      while (attempts < 10) {
+      // 🔥 wait for session properly
+      for (let i = 0; i < 10; i++) {
         const res = await supabase.auth.getSession();
         session = res.data.session;
 
-        if (session) break;
+        if (session?.user) break;
 
         await new Promise((r) => setTimeout(r, 300));
-        attempts++;
+      }
+
+      if (!session?.user) {
+        console.log("❌ No session after wait");
+        router.replace("/login");
+        return;
       }
 
       const route = await resolveUserRoute();
+      console.log("➡️ Redirecting to:", route);
+
       router.replace(route);
     };
 

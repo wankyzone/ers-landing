@@ -1,24 +1,21 @@
 import { supabase } from "@/lib/supabase";
 
 export async function resolveUserRoute() {
-  // 🔥 wait for session stability
   const { data: { session } } = await supabase.auth.getSession();
 
-  if (!session?.user) {
-    return "/login";
-  }
+  if (!session?.user) return "/login";
 
   const user = session.user;
-  const email = user.email;
 
-  if (email === "founder@wankysoftware.com") {
+  // 🔥 founder override
+  if (user.email === "founder@wankysoftware.com") {
     return "/admin";
   }
 
   const { data: profile } = await supabase
     .from("profiles")
     .select("role")
-    .eq("email", email)
+    .eq("id", user.id)
     .single();
 
   if (!profile?.role) return "/select-role";
