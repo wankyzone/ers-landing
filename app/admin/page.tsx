@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { useRouter } from "next/navigation"; // ✅ FIXED
+import { useOnboardingGuard } from "@/hooks/useOnboardingGuard";
 
 type User = {
   id: string;
@@ -15,19 +17,41 @@ export default function AdminPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const router = useRouter();
+
   useEffect(() => {
-    fetchUsers();
+    const check = async () => {
+      const status = await useOnboardingGuard();
+
+      if (status === "NO_AUTH") return router.push("/login");
+      if (status === "NO_KYC") return router.push("/kyc"); // ✅ FIXED
+      if (status === "PENDING_KYC") return router.push("/kyc/pending");
+
+      // 🔐 block non-admins
+      if (status !== "ADMIN") return router.push("/");
+    };
+
+    check();
   }, []);
 
   async function fetchUsers() {
     setLoading(true);
 
-    const { data, error } = await supabase.from("users").select("*");
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("*");
 
     if (!error) setUsers(data || []);
 
     setLoading(false);
   }
+
+  useEffect(() => {
+    fetchUsers();
+
+    const interval = setInterval(fetchUsers, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   async function updateUser(userId: string, updates: Partial<User>) {
     await fetch("/api/admin/update-user", {

@@ -1,26 +1,59 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react"; // ✅ FIX
 import { supabase } from "@/lib/supabase";
 
 export default function LoginPage() {
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
   const [step, setStep] = useState<"phone" | "otp">("phone");
+  const [timer, setTimer] = useState(0);
+  const [loading, setLoading] = useState(false);
 
   const sendOtp = async () => {
-    await supabase.auth.signInWithOtp({ phone });
-    setStep("otp");
+    setLoading(true);
+
+    const { error } = await supabase.auth.signInWithOtp({
+      phone,
+    });
+
+    if (!error) {
+      setStep("otp");
+      setTimer(60); // ✅ moved here
+    }
+
+    setLoading(false);
   };
 
+  const resendOtp = async () => {
+    if (timer > 0) return;
+    await sendOtp();
+  };
+
+  useEffect(() => {
+    if (timer === 0) return;
+
+    const interval = setInterval(() => {
+      setTimer((t) => t - 1);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [timer]);
+
   const verifyOtp = async () => {
+    setLoading(true);
+
     const { error } = await supabase.auth.verifyOtp({
       phone,
       token: otp,
       type: "sms",
     });
 
-    if (!error) window.location.href = "/";
+    if (!error) {
+      window.location.href = "/";
+    }
+
+    setLoading(false);
   };
 
   return (
@@ -32,30 +65,42 @@ export default function LoginPage() {
           <>
             <input
               className="w-full p-2 mb-4 bg-black border border-zinc-700 rounded"
-              placeholder="+234..."
+              placeholder="+2348012345678"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
             />
+
             <button
               onClick={sendOtp}
+              disabled={loading}
               className="w-full bg-green-600 py-2 rounded"
             >
-              Send OTP
+              {loading ? "Sending..." : "Send OTP"}
             </button>
           </>
         ) : (
           <>
             <input
-              className="w-full p-2 mb-4 bg-black border border-zinc-700 rounded"
+              className="w-full p-2 mb-3 bg-black border border-zinc-700 rounded"
               placeholder="Enter OTP"
               value={otp}
               onChange={(e) => setOtp(e.target.value)}
             />
+
             <button
               onClick={verifyOtp}
-              className="w-full bg-green-600 py-2 rounded"
+              disabled={loading}
+              className="w-full bg-green-600 py-2 rounded mb-2"
             >
-              Verify OTP
+              {loading ? "Verifying..." : "Verify OTP"}
+            </button>
+
+            <button
+              onClick={resendOtp}
+              disabled={timer > 0}
+              className="w-full text-sm text-zinc-400"
+            >
+              {timer > 0 ? `Resend in ${timer}s` : "Resend OTP"}
             </button>
           </>
         )}
