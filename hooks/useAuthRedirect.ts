@@ -4,23 +4,15 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { resolveUserRoute } from "@/lib/auth/resolver";
 
-export default function AuthCallbackPage() {
+export function useAuthRedirect() {
   const router = useRouter();
 
   useEffect(() => {
-    const handleRedirect = async () => {
+    const run = async () => {
       const route = await resolveUserRoute();
-
-      // 🔥 single source of truth routing
       router.replace(route);
     };
 
-    handleRedirect();
+    run();
   }, [router]);
-
-  return (
-    <div className="p-6 text-white">
-      Authenticating...
-    </div>
-  );
 }
