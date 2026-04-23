@@ -6,23 +6,23 @@ export async function resolveUserRoute() {
   if (!session?.user) return "/login";
 
   const user = session.user;
+  const email = user.email?.toLowerCase();
 
   // 🔥 Founder override
-  if (user.email === "founder@wankysoftware.com") {
+  if (email === "founder@wankysoftware.com") {
     return "/admin";
   }
 
-  // 👇 THIS IS WHERE YOUR CODE GOES
   const { data: profile } = await supabase
     .from("profiles")
     .select("role")
     .eq("id", user.id)
-    .single();
+    .maybeSingle();
 
   if (!profile) {
-    console.log("⚠️ Creating profile for user");
+    console.log("⚠️ Creating profile for user", user.id);
 
-    await supabase.from("profiles").insert({
+    await supabase.from("profiles").upsert({
       id: user.id,
       role: null,
     });
@@ -30,7 +30,6 @@ export async function resolveUserRoute() {
     return "/select-role";
   }
 
-  // 👇 CONTINUE NORMAL FLOW
   if (!profile.role) return "/select-role";
 
   switch (profile.role) {

@@ -22,8 +22,8 @@ export default function SelectRolePage() {
       .eq("id", user.id);
 
     // 🔥 redirect after role selection
-    if (role === "runner") router.push("/runner");
-    else router.push("/client");
+    if (role === "runner") router.replace("/runner");
+    else router.replace("/client");
   };
 
   return (
