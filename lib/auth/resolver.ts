@@ -1,15 +1,16 @@
 import { supabase } from "@/lib/supabase";
 
 export async function resolveUserRoute() {
-  const { data: sessionData } = await supabase.auth.getUser();
+  // 🔥 wait for session stability
+  const { data: { session } } = await supabase.auth.getSession();
 
-  const user = sessionData.user;
+  if (!session?.user) {
+    return "/login";
+  }
 
-  if (!user) return "/login";
-
+  const user = session.user;
   const email = user.email;
 
-  // 🔥 founder override
   if (email === "founder@wankysoftware.com") {
     return "/admin";
   }
