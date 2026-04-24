@@ -23,9 +23,8 @@ export default function SelectRolePage() {
       .update({ role })
       .eq("id", user.id);
 
-    // ✅ THEN resolve route centrally
-    const route = await resolveUserRoute();
-    router.replace(route);
+    if (role === "runner") router.replace("/runner");
+    else router.replace("/client");
   };
 
   return (

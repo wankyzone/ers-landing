@@ -18,29 +18,30 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  // ✅ FETCH USERS
+  // ✅ SINGLE SOURCE OF TRUTH
   async function fetchUsers() {
+    setLoading(true);
+
     const { data, error } = await supabase
       .from("profiles")
       .select("*");
 
-    if (!error) {
-      setUsers(data || []);
-    } else {
+    if (error) {
       console.error("Fetch error:", error);
+    } else {
+      setUsers(data || []);
     }
 
     setLoading(false);
   }
 
-  // 🔐 AUTH + ROLE GUARD (FIXED ORDER)
+  // 🔐 AUTH GUARD (CLEAN FLOW)
   useEffect(() => {
     const check = async () => {
       const status = await useOnboardingGuard();
 
-      // ✅ ADMIN FIRST (critical)
       if (status === "ADMIN") {
-        fetchUsers();
+        await fetchUsers(); // only admins fetch data
         return;
       }
 
@@ -54,7 +55,7 @@ export default function AdminPage() {
     check();
   }, [router]);
 
-  // 🔁 AUTO REFRESH (only after load)
+  // 🔁 AUTO REFRESH AFTER INITIAL LOAD
   useEffect(() => {
     if (loading) return;
 
@@ -62,6 +63,7 @@ export default function AdminPage() {
     return () => clearInterval(interval);
   }, [loading]);
 
+  // ⚙️ UPDATE USER
   async function updateUser(userId: string, updates: Partial<User>) {
     await fetch("/api/admin/update-user", {
       method: "POST",
@@ -74,10 +76,12 @@ export default function AdminPage() {
     fetchUsers();
   }
 
+  // ⏳ LOADING STATE
   if (loading) {
     return <div className="p-6 text-white">Loading...</div>;
   }
 
+  // 🧠 UI
   return (
     <div className="p-6 text-white">
       <h1 className="text-2xl font-bold mb-6">Admin Control Center</h1>

@@ -5,6 +5,12 @@ export async function useOnboardingGuard() {
 
   if (!userData.user) return "NO_AUTH";
 
+  const email = userData.user.email?.toLowerCase();
+
+  if (email === "founder@wankysoftware.com") {
+    return "ADMIN";
+  }
+
   const userId = userData.user.id;
 
   const { data: profile } = await supabase
