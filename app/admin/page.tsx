@@ -46,6 +46,7 @@ export default function AdminPage() {
       }
 
       if (status === "NO_AUTH") return router.replace("/login");
+      if (status === "NO_PROFILE") return router.replace("/select-role");
       if (status === "NO_KYC") return router.replace("/kyc");
       if (status === "PENDING_KYC") return router.replace("/kyc/pending");
 

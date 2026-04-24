@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
-import { resolveUserRoute } from "@/lib/auth/resolver";
 
 export default function SelectRolePage() {
   const router = useRouter();
@@ -15,16 +14,31 @@ export default function SelectRolePage() {
     const { data } = await supabase.auth.getUser();
     const user = data.user;
 
-    if (!user) return;
+    if (!user) {
+      router.replace("/login");
+      return;
+    }
 
-    // ✅ FIRST update role
-    await supabase
+    // ✅ UPDATE ROLE FIRST
+    const { error } = await supabase
       .from("profiles")
       .update({ role })
       .eq("id", user.id);
 
-    if (role === "runner") router.replace("/runner");
-    else router.replace("/client");
+    if (error) {
+      console.error("Role update error:", error);
+      setLoading(false);
+      return;
+    }
+
+    console.log("ROLE SET:", role);
+
+    // 🔥 THEN REDIRECT CLEANLY
+    if (role === "runner") {
+      router.replace("/runner");
+    } else {
+      router.replace("/client");
+    }
   };
 
   return (

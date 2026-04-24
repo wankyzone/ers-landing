@@ -3,32 +3,64 @@ import { supabase } from "@/lib/supabase";
 export async function useOnboardingGuard() {
   const { data: userData } = await supabase.auth.getUser();
 
-  if (!userData.user) return "NO_AUTH";
+  if (!userData.user) {
+    console.log("GUARD: NO AUTH");
+    return "NO_AUTH";
+  }
 
-  const email = userData.user.email?.toLowerCase();
+  const user = userData.user;
+  const email = user.email?.toLowerCase();
 
+  // 🔥 HARD ADMIN OVERRIDE (TOP PRIORITY)
   if (email === "founder@wankysoftware.com") {
+    console.log("GUARD: ADMIN BYPASS");
     return "ADMIN";
   }
 
-  const userId = userData.user.id;
+  const userId = user.id;
 
-  const { data: profile } = await supabase
+  // 🔍 PROFILE
+  const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select("role, kyc_status")
     .eq("id", userId)
     .maybeSingle();
 
-  if (!profile) return "NO_PROFILE";
+  console.log("GUARD PROFILE:", profile);
 
-  // ✅ ADMIN BYPASS FIRST
-  if (profile.role === "admin") return "ADMIN";
+  // ✅ AUTO-CREATE PROFILE (CRITICAL FIX)
+  if (!profile) {
+    console.log("GUARD: Creating profile");
 
+    await supabase.from("profiles").upsert({
+      id: userId,
+      role: null,
+      kyc_status: "pending",
+    });
+
+    return "NO_PROFILE";
+  }
+
+  // ✅ ROLE NOT SET → go select role
+  if (!profile.role) {
+    console.log("GUARD: NO ROLE");
+    return "NO_PROFILE";
+  }
+
+  // 🔥 ADMIN ROLE
+  if (profile.role === "admin") {
+    console.log("GUARD: ADMIN ROLE");
+    return "ADMIN";
+  }
+
+  // 🔍 KYC CHECK
   const { data: kyc } = await supabase
     .from("kyc_profiles")
     .select("status")
     .eq("user_id", userId)
     .maybeSingle();
+
+  console.log("GUARD KYC:", kyc);
 
   if (!kyc) return "NO_KYC";
 
