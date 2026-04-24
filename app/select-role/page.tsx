@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
+import { resolveUserRoute } from "@/lib/auth/resolver";
 
 export default function SelectRolePage() {
   const router = useRouter();
@@ -16,14 +17,15 @@ export default function SelectRolePage() {
 
     if (!user) return;
 
+    // ✅ FIRST update role
     await supabase
       .from("profiles")
       .update({ role })
       .eq("id", user.id);
 
-    // 🔥 redirect after role selection
-    if (role === "runner") router.replace("/runner");
-    else router.replace("/client");
+    // ✅ THEN resolve route centrally
+    const route = await resolveUserRoute();
+    router.replace(route);
   };
 
   return (

@@ -8,20 +8,23 @@ export async function resolveUserRoute() {
   const user = session.user;
   const email = user.email?.toLowerCase();
 
-  // 🔥 Founder override
+  // 🔥 Founder override (hard gate)
   if (email === "founder@wankysoftware.com") {
     return "/admin";
   }
 
-  const { data: profile } = await supabase
+  const { data: profile, error } = await supabase
     .from("profiles")
     .select("role")
     .eq("id", user.id)
     .maybeSingle();
 
-  if (!profile) {
-    console.log("⚠️ Creating profile for user", user.id);
+  if (error) {
+    console.error("Profile fetch error:", error);
+    return "/login";
+  }
 
+  if (!profile) {
     await supabase.from("profiles").upsert({
       id: user.id,
       role: null,

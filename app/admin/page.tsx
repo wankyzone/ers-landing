@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { useRouter } from "next/navigation"; // ✅ FIXED
+import { useRouter } from "next/navigation";
 import { useOnboardingGuard } from "@/hooks/useOnboardingGuard";
 
 type User = {
@@ -16,42 +16,51 @@ type User = {
 export default function AdminPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
-
   const router = useRouter();
 
-  useEffect(() => {
-    const check = async () => {
-      const status = await useOnboardingGuard();
-
-      if (status === "NO_AUTH") return router.push("/login");
-      if (status === "NO_KYC") return router.push("/kyc"); // ✅ FIXED
-      if (status === "PENDING_KYC") return router.push("/kyc/pending");
-
-      // 🔐 block non-admins
-      if (status !== "ADMIN") return router.push("/");
-    };
-
-    check();
-  }, []);
-
+  // ✅ FETCH USERS
   async function fetchUsers() {
-    setLoading(true);
-
     const { data, error } = await supabase
       .from("profiles")
       .select("*");
 
-    if (!error) setUsers(data || []);
+    if (!error) {
+      setUsers(data || []);
+    } else {
+      console.error("Fetch error:", error);
+    }
 
     setLoading(false);
   }
 
+  // 🔐 AUTH + ROLE GUARD (FIXED ORDER)
   useEffect(() => {
-    fetchUsers();
+    const check = async () => {
+      const status = await useOnboardingGuard();
+
+      // ✅ ADMIN FIRST (critical)
+      if (status === "ADMIN") {
+        fetchUsers();
+        return;
+      }
+
+      if (status === "NO_AUTH") return router.replace("/login");
+      if (status === "NO_KYC") return router.replace("/kyc");
+      if (status === "PENDING_KYC") return router.replace("/kyc/pending");
+
+      return router.replace("/");
+    };
+
+    check();
+  }, [router]);
+
+  // 🔁 AUTO REFRESH (only after load)
+  useEffect(() => {
+    if (loading) return;
 
     const interval = setInterval(fetchUsers, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [loading]);
 
   async function updateUser(userId: string, updates: Partial<User>) {
     await fetch("/api/admin/update-user", {
