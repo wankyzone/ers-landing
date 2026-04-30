@@ -1,40 +1,27 @@
 import { supabase } from "@/lib/supabase";
 
-export async function resolveUserRoute() {
-  const { data } = await supabase.auth.getUser();
-  const user = data.user;
+export const resolveUserRoute = async () => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return "/";
 
-  if (!user) return "/login";
-
+  // Check the profiles table specifically
   const { data: profile } = await supabase
     .from("profiles")
-    .select("*")
+    .select("role, phone, nin")
     .eq("id", user.id)
     .single();
 
-  if (!profile) return "/select-role";
+  // If no profile or no role, send to selection
+  if (!profile || !profile.role) return "/select-role";
 
-  // 🔥 ADMIN BYPASS
-  if (profile.role === "admin") {
-    return "/admin";
+  // Onboarding Gates
+  if (profile.role === "runner" && (!profile.phone || !profile.nin)) {
+    return "/onboarding/runner";
+  }
+  
+  if (profile.role === "client" && !profile.phone) {
+    return "/onboarding/client";
   }
 
-  // 🔥 NO ROLE
-  if (!profile.role) {
-    return "/select-role";
-  }
-
-  // 🔥 OPTIONAL: TEMPORARILY DISABLE KYC BLOCKING
-  // (you can re-enable later)
-  /*
-  if (profile.kyc_status !== "verified") {
-    return "/kyc";
-  }
-  */
-
-  // 🔥 NORMAL FLOW
-  if (profile.role === "runner") return "/runner";
-  if (profile.role === "client") return "/client";
-
-  return "/";
-}
+  return `/${profile.role}`;
+};

@@ -11,21 +11,14 @@ export const metadata: Metadata = {
     "On-demand errand execution powered by trusted local runners in Lagos.",
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className="h-full antialiased">
       <body className="min-h-full bg-black text-white flex flex-col">
-        
+        {/* Only keep global providers here */}
         <RoleSyncProvider>
-          <ClientGuard> {/* ✅ GUARD LIVES HERE */}
-            {children}
-          </ClientGuard>
+          {children}
         </RoleSyncProvider>
-
         <Toaster position="top-center" />
       </body>
     </html>

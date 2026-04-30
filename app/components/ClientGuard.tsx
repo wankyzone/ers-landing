@@ -1,28 +1,46 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useOnboardingGuard } from "@/hooks/useOnboardingGuard";
+import { supabase } from "@/lib/supabase";
 
-export default function ClientGuard({ children }: any) {
+export default function ClientGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const check = async () => {
-      const path = window.location.pathname;
+    const checkAccess = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        router.replace("/");
+        return;
+      }
 
-      if (path.startsWith("/login") || path.startsWith("/kyc")) return;
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role, phone")
+        .eq("id", user.id)
+        .single();
 
-      const status = await useOnboardingGuard();
-
-      if (status === "NO_AUTH") router.push("/login");
-      if (status === "NO_KYC") router.push("/kyc");
-      if (status === "PENDING_KYC") router.push("/kyc/pending");
-      if (status === "ADMIN") return;
+      // Ensure they are a client and have a phone number
+      if (!profile || profile.role !== "client") {
+        router.replace("/select-role");
+      } else if (!profile.phone) {
+        router.replace("/onboarding/client");
+      } else {
+        setLoading(false);
+      }
     };
 
-    check();
-  }, []);
+    checkAccess();
+  }, [router]);
 
-  return children;
+  if (loading) return (
+    <div className="min-h-screen bg-black flex items-center justify-center text-green-500 font-mono tracking-tighter">
+      VERIFYING CLIENT STATUS...
+    </div>
+  );
+
+  return <>{children}</>;
 }
