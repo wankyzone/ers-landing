@@ -1,6 +1,7 @@
 "use client";
 
-import ClientGuard from "@/components/guards/ClientGuard";
+// Change this from '@/components/guards/ClientGuard'
+import ClientGuard from "@/app/components/ClientGuard"; 
 
 export default function ClientLayout({
   children,

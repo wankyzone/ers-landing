@@ -1,6 +1,7 @@
 "use client";
 
-import RunnerGuard from "@/components/guards/RunnerGuard";
+// Points to root/components/guard/RunnerGuard.tsx
+import RunnerGuard from "@/components/guards/RunnerGuard"; 
 
 export default function RunnerLayout({
   children,
