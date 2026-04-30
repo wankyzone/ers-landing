@@ -3,43 +3,77 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { resolveUserRoute } from "@/lib/auth/resolver";
 
 export default function AuthCallbackPage() {
   const router = useRouter();
 
   useEffect(() => {
     const run = async () => {
-      let session = null;
+      const { data: { user } } = await supabase.auth.getUser();
 
-      // 🔥 wait for session properly
-      for (let i = 0; i < 10; i++) {
-        const res = await supabase.auth.getSession();
-        session = res.data.session;
-
-        if (session?.user) break;
-
-        await new Promise((r) => setTimeout(r, 300));
-      }
-
-      if (!session?.user) {
-        console.log("❌ No session after wait");
-        router.replace("/login");
+      if (!user) {
+        router.replace("/");
         return;
       }
 
-      const route = await resolveUserRoute();
-      console.log("➡️ Redirecting to:", route);
+      // Fetch profile + KYC status
+      let { data: profile } = await supabase
+        .from("profiles")
+        .select("role, phone, is_verified, nin") // Added fields
+        .eq("id", user.id)
+        .single();
 
-      router.replace(route);
+      // 1. New User: Create basic profile shell
+      if (!profile) {
+        await supabase.from("profiles").insert({ id: user.id, role: null });
+        router.replace("/select-role");
+        return;
+      }
+
+      // 2. No Role Selected:
+      if (!profile.role) {
+        router.replace("/select-role");
+        return;
+      }
+
+      // 3. Role-Based Routing with Onboarding Gates
+      switch (profile.role) {
+        case "admin":
+          router.replace("/admin");
+          break;
+
+        case "runner":
+          // Gate for Runner KYC (Phone + NIN)
+          if (!profile.phone || !profile.nin) {
+            router.replace("/onboarding/runner");
+          } else {
+            router.replace("/runner");
+          }
+          break;
+
+        case "client":
+          // Gate for Client Info (Phone + Name)
+          if (!profile.phone) {
+            router.replace("/onboarding/client");
+          } else {
+            router.replace("/client");
+          }
+          break;
+
+        default:
+          router.replace("/");
+      }
     };
 
     run();
   }, [router]);
 
   return (
-    <div className="p-6 text-white bg-black min-h-screen flex items-center justify-center">
-      Authenticating...
+    <div className="min-h-screen bg-black flex flex-col items-center justify-center">
+      <div className="w-12 h-12 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
+      <p className="mt-4 text-gray-400 font-mono tracking-widest uppercase text-xs">
+        Syncing with ERS Core...
+      </p>
     </div>
   );
 }

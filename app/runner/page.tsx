@@ -2,325 +2,84 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
-import toast from "react-hot-toast"; // ✅ NEW
-import { channel } from "diagnostics_channel";
-
-type Errand = {
-  id: string;
-  title: string;
-  pickup_location: string;
-  delivery_location: string;
-  status: string;
-  price: number;
-  runner_id?: string | null;
-};
+import toast from "react-hot-toast";
 
 export default function RunnerPage() {
   const [loading, setLoading] = useState(true);
-  const [errands, setErrands] = useState<Errand[]>([]);
-  const [activeJob, setActiveJob] = useState<Errand | null>(null);
-  const [totalEarnings, setTotalEarnings] = useState(0);
-  const [completedCount, setCompletedCount] = useState(0);
+  const [errands, setErrands] = useState<any[]>([]);
+  const [activeJob, setActiveJob] = useState<any | null>(null);
+  const [profile, setProfile] = useState<any>(null);
 
-  const [showSuccess, setShowSuccess] = useState(false);
-  const [lastEarning, setLastEarning] = useState<number | null>(null);
+  const fetchData = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
 
-  const [user, setUser] = useState<any>(null);
+    // Fetch Profile (Wallet)
+    const { data: prof } = await supabase.from("profiles").select("*").eq("id", user.id).single();
+    setProfile(prof);
 
-  const fetchErrands = async () => {
-    const { data: errandsData } = await supabase
-      .from("errands")
-      .select("*")
-      .eq("status", "pending")
-      .order("created_at", { ascending: false });
+    // Fetch Active Job
+    const { data: active } = await supabase.from("errands").select("*").eq("runner_id", user.id).eq("status", "accepted").maybeSingle();
+    setActiveJob(active);
 
-    setErrands(errandsData || []);
+    // Fetch Available Jobs
+    if (!active) {
+      const { data: avail } = await supabase.from("errands").select("*").eq("status", "paid_escrow").order("created_at", { ascending: false });
+      setErrands(avail || []);
+    }
   };
 
   useEffect(() => {
-    const init = async () => {
-      const { data } = await supabase.auth.getUser();
-
-      if (!data.user) {
-        window.location.href = "/";
-        return;
-      }
+    fetchData().then(() => setLoading(false));
     
-      setUser(data.user);
-
-      const { data: earningsData } = await supabase
-        .from("earnings")
-        .select("*")
-        .eq("runner_id", data.user.id);
-
-      if (earningsData) {
-        const total = earningsData.reduce(
-          (sum, e) => sum + Number(e.amount),
-          0
-        );
-        setTotalEarnings(total);
-        setCompletedCount(earningsData.length);
-      }
-
-      const { data: userData } = await supabase
-        .from("users")
-        .select("role")
-        .eq("id", data.user.id)
-        .maybeSingle();
-
-      if (!userData || userData.role !== "runner") {
-        window.location.href = "/select-role";
-        return;
-      }
-
-      const { data: active } = await supabase
-        .from("errands")
-        .select("*")
-        .eq("runner_id", data.user.id)
-        .eq("status", "accepted")
-        .maybeSingle();
-
-      if (active) {
-        setActiveJob(active);
-      } else {
-        await fetchErrands();
-      }
-
-      setLoading(false);
-
-      const channel = supabase
-        .channel("errands-feed")
-        .on(
-          "postgres_changes",
-          { event: "*", schema: "public", table: "errands" },
-          (payload) => {
-            const updated = payload.new as Errand;
-
-            // ✅ NEW ERRAND ALERT (THIS IS THE KEY ADDITION)
-            if (payload.eventType === "INSERT" && updated.status === "pending") {
-              setErrands((prev) => [updated, ...prev]);
-
-              toast.success(`🚀 ${updated.title} - ₦${updated.price}`);
-            }
-
-            if (payload.eventType === "UPDATE") {
-              if (
-                updated.runner_id === data.user?.id &&
-                updated.status === "accepted"
-              ) {
-                setActiveJob(updated);
-                setErrands([]);
-              }
-
-              if (updated.status !== "pending") {
-                setErrands((prev) =>
-                  prev.filter((e) => e.id !== updated.id)
-                );
-              }
-
-              if (
-                updated.status === "completed" &&
-                updated.runner_id === data.user?.id
-              ) {
-                setActiveJob(null);
-              }
-            }
-          }
-        )
-        .subscribe();
-    };
-
-    init();
-  }, []);
-  
-  useEffect(() => {
-    const channel = supabase
-      .channel("runner-notifications")
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "notifications",
-        },
-        (payload) => {
-          const notification = payload.new;
-
-          // Only show if it's for this user
-          if (notification.user_id === user?.id) {
-            alert(notification.title + ": " + notification.message);
-          }
-        }
-      )
+    const channel = supabase.channel("runner-feed")
+      .on("postgres_changes", { event: "*", schema: "public", table: "errands" }, () => fetchData())
       .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-        };  
+      
+    return () => { supabase.removeChannel(channel); };
   }, []);
 
-  const handleComplete = async () => {
-    if (!activeJob) return;
-
-    const { data } = await supabase.auth.getUser();
-    if (!data.user) return;
-
-    await supabase
-      .from("errands")
-      .update({
-        status: "completed",
-        completed_at: new Date(),
-      })
-      .eq("id", activeJob.id);
-
-    await supabase.from("earnings").insert([
-      {
-        runner_id: data.user.id,
-        errand_id: activeJob.id,
-        amount: activeJob.price,
-      },
-    ]);
-
-
-    await fetch("/api/run-fraud-check");
+  const handleStatusUpdate = async (id: string, newStatus: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    const update = newStatus === 'accepted' ? { status: newStatus, runner_id: user?.id } : { status: newStatus };
     
-    setLastEarning(activeJob.price);
-    setShowSuccess(true);
-
-    setTotalEarnings((prev) => prev + activeJob.price);
-    setCompletedCount((prev) => prev + 1);
-    setActiveJob(null);
-
-    setTimeout(async () => {
-      setShowSuccess(false);
-      await fetchErrands();
-    }, 2500);
+    const { error } = await supabase.from("errands").update(update).eq("id", id);
+    if (error) toast.error("Action failed");
+    else toast.success(`Errand ${newStatus}`);
   };
 
-  if (loading) {
-    return (
-      <main className="min-h-screen bg-black text-white flex items-center justify-center">
-        <p className="text-gray-400">Loading...</p>
-      </main>
-    );
-  }
+  if (loading) return <div className="bg-black min-h-screen text-white flex items-center justify-center">Loading Engine...</div>;
 
   return (
     <main className="min-h-screen bg-black text-white px-6 py-20">
-
-      <div className="max-w-2xl mx-auto mb-10 grid grid-cols-2 gap-4">
-        <div className="p-5 bg-gray-900 rounded-xl border border-green-500/20">
-          <p className="text-gray-400 text-sm">Total Earnings</p>
-          <h2 className="text-2xl font-bold text-green-400">
-            ₦{totalEarnings}
-          </h2>
+      {/* WALLET HEADER */}
+      <div className="max-w-2xl mx-auto mb-10 p-8 bg-gray-900 border border-green-500/20 rounded-3xl flex justify-between items-center">
+        <div>
+          <p className="text-gray-500 uppercase text-xs tracking-widest mb-1">Available for Withdrawal</p>
+          <h2 className="text-4xl font-black text-green-500">₦{(profile?.wallet_balance_kobo / 100 || 0).toLocaleString()}</h2>
         </div>
-
-        <div className="p-5 bg-gray-900 rounded-xl border border-white/10">
-          <p className="text-gray-400 text-sm">Completed Jobs</p>
-          <h2 className="text-2xl font-bold">
-            {completedCount}
-          </h2>
-        </div>
+        <button className="bg-white text-black px-6 py-3 rounded-xl font-bold text-sm uppercase">Withdraw</button>
       </div>
 
-      {activeJob && (
-        <div className="max-w-2xl mx-auto mb-10 p-5 border border-green-500 rounded-xl bg-gray-900">
-          <h2 className="text-xl font-bold">{activeJob.title}</h2>
-
-          <p className="text-gray-400 mt-2">
-            📍 {activeJob.pickup_location} → {activeJob.delivery_location}
-          </p>
-
-          <p className="text-green-400 font-bold mt-2 text-lg">
-            ₦{activeJob.price}
-          </p>
-
-          <button
-            onClick={handleComplete}
-            className="mt-4 bg-green-500 text-black px-4 py-2 rounded font-bold"
-          >
-            Mark as Completed
-          </button>
+      {activeJob ? (
+        <div className="max-w-2xl mx-auto p-8 border-2 border-green-500 rounded-3xl bg-gray-900 shadow-2xl shadow-green-500/10">
+          <span className="text-green-500 font-mono text-xs uppercase tracking-widest">Active Execution</span>
+          <h2 className="text-2xl font-bold mt-2">{activeJob.description}</h2>
+          <p className="text-gray-400 mt-4 italic">📍 {activeJob.pickup_location} → {activeJob.dropoff_location}</p>
+          <button onClick={() => handleStatusUpdate(activeJob.id, 'completed')} className="w-full mt-8 bg-green-500 text-black font-black py-4 rounded-xl">MARK AS COMPLETED</button>
         </div>
-      )}
-
-      {!activeJob && (
-        <>
-          <h1 className="text-4xl font-black text-center mb-10">
-            Available Errands
-          </h1>
-
-          {errands.length === 0 ? (
-            <div className="text-center text-gray-400">
-              <p className="text-lg mb-2">⏳ Waiting for new errands...</p>
-              <div className="animate-pulse text-sm">
-                Stay online — jobs can come in anytime
+      ) : (
+        <div className="max-w-2xl mx-auto space-y-4">
+          <h3 className="text-gray-500 uppercase text-xs font-bold tracking-tighter mb-4">Available Errands</h3>
+          {errands.map(errand => (
+            <div key={errand.id} className="p-6 bg-gray-900 border border-white/5 rounded-2xl flex justify-between items-center">
+              <div>
+                <p className="font-bold text-lg">{errand.description}</p>
+                <p className="text-gray-500 text-sm">₦{(errand.amount_kobo / 100).toLocaleString()}</p>
               </div>
+              <button onClick={() => handleStatusUpdate(errand.id, 'accepted')} className="bg-white text-black px-6 py-2 rounded-lg font-bold text-xs uppercase">Accept</button>
             </div>
-          ) : (
-            <div className="max-w-2xl mx-auto space-y-4">
-              {errands.map((errand) => (
-                <div
-                  key={errand.id}
-                  className="p-5 border border-white/10 rounded-xl bg-gray-900"
-                >
-                  <h2 className="text-xl font-bold">{errand.title}</h2>
-
-                  <p className="text-gray-400 mt-2">
-                    📍 {errand.pickup_location} → {errand.delivery_location}
-                  </p>
-
-                  <p className="text-green-400 font-bold mt-2 text-lg">
-                    ₦{errand.price}
-                  </p>
-
-                  <button
-                    onClick={async () => {
-                      const { data } = await supabase.auth.getUser();
-                      if (!data.user) return;
-
-                      const { error } = await supabase
-                        .from("errands")
-                        .update({
-                          status: "accepted",
-                          runner_id: data.user.id,
-                        })
-                        .eq("id", errand.id);
-
-                      if (error) {
-                        alert("Failed to accept job");
-                        return;
-                      }
-
-                      setErrands((prev) =>
-                        prev.filter((e) => e.id !== errand.id)
-                      );
-                    }}
-                    className="mt-4 bg-green-500 text-black px-4 py-2 rounded font-bold"
-                  >
-                    Accept Job
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </>
-      )}
-
-      {showSuccess && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
-          <div className="bg-white text-black rounded-2xl p-6 w-[90%] max-w-sm text-center shadow-xl">
-            <h2 className="text-xl font-semibold mb-2">✅ Job Completed</h2>
-
-            <p className="text-gray-600 mb-4">
-              ₦{lastEarning?.toLocaleString()} added
-            </p>
-
-            <div className="text-sm text-gray-400 animate-pulse">
-              🔄 Finding new errands...
-            </div>
-          </div>
+          ))}
         </div>
       )}
     </main>

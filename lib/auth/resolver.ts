@@ -1,48 +1,40 @@
 import { supabase } from "@/lib/supabase";
 
 export async function resolveUserRoute() {
-  const { data: { session } } = await supabase.auth.getSession();
+  const { data } = await supabase.auth.getUser();
+  const user = data.user;
 
-  if (!session?.user) return "/login";
+  if (!user) return "/login";
 
-  const user = session.user;
-  const email = user.email?.toLowerCase();
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("id", user.id)
+    .single();
 
-  // 🔥 Founder override (hard gate)
-  if (email === "founder@wankysoftware.com") {
+  if (!profile) return "/select-role";
+
+  // 🔥 ADMIN BYPASS
+  if (profile.role === "admin") {
     return "/admin";
   }
 
-  const { data: profile, error } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  if (error) {
-    console.error("Profile fetch error:", error);
-    return "/login";
-  }
-
-  if (!profile) {
-    await supabase.from("profiles").upsert({
-      id: user.id,
-      role: null,
-    });
-
+  // 🔥 NO ROLE
+  if (!profile.role) {
     return "/select-role";
   }
 
-  if (!profile.role) return "/select-role";
-
-  switch (profile.role) {
-    case "admin":
-      return "/admin";
-    case "runner":
-      return "/runner";
-    case "client":
-      return "/client";
-    default:
-      return "/select-role";
+  // 🔥 OPTIONAL: TEMPORARILY DISABLE KYC BLOCKING
+  // (you can re-enable later)
+  /*
+  if (profile.kyc_status !== "verified") {
+    return "/kyc";
   }
+  */
+
+  // 🔥 NORMAL FLOW
+  if (profile.role === "runner") return "/runner";
+  if (profile.role === "client") return "/client";
+
+  return "/";
 }

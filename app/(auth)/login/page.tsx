@@ -50,7 +50,7 @@ export default function LoginPage() {
     });
 
     if (!error) {
-      window.location.href = "/";
+      window.location.href = "/auth/callback";
     }
 
     setLoading(false);

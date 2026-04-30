@@ -19,7 +19,7 @@ export default function RoleGuard({
 
   if (!role) {
     if (typeof window !== "undefined") {
-      window.location.href = "/";
+      window.location.href = "/select-role";
     }
     return null;
   }
