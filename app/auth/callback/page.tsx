@@ -16,53 +16,53 @@ export default function AuthCallbackPage() {
         return;
       }
 
-      // Fetch profile + KYC status
+      // 🔥 Get profile
       let { data: profile } = await supabase
         .from("profiles")
-        .select("role, phone, is_verified, nin") // Added fields
+        .select("role")
         .eq("id", user.id)
         .single();
 
-      // 1. New User: Create basic profile shell
+      // 🔥 If no profile → create one
       if (!profile) {
-        await supabase.from("profiles").insert({ id: user.id, role: null });
+        const { error } = await supabase.from("profiles").insert({
+          id: user.id,
+          role: null,
+        });
+
+        if (error) {
+          console.error("Profile creation error:", error);
+          return;
+        }
+
         router.replace("/select-role");
         return;
       }
 
-      // 2. No Role Selected:
+      // 🔥 No role yet → go select role
       if (!profile.role) {
         router.replace("/select-role");
         return;
       }
 
-      // 3. Role-Based Routing with Onboarding Gates
-      switch (profile.role) {
-        case "admin":
-          router.replace("/admin");
-          break;
-
-        case "runner":
-          // Gate for Runner KYC (Phone + NIN)
-          if (!profile.phone || !profile.nin) {
-            router.replace("/onboarding/runner");
-          } else {
-            router.replace("/runner");
-          }
-          break;
-
-        case "client":
-          // Gate for Client Info (Phone + Name)
-          if (!profile.phone) {
-            router.replace("/onboarding/client");
-          } else {
-            router.replace("/client");
-          }
-          break;
-
-        default:
-          router.replace("/");
+      // 🔥 Role-based routing (clean)
+      if (profile.role === "admin") {
+        router.replace("/admin");
+        return;
       }
+
+      if (profile.role === "runner") {
+        router.replace("/runner");
+        return;
+      }
+
+      if (profile.role === "client") {
+        router.replace("/client");
+        return;
+      }
+
+      // 🔥 Fallback
+      router.replace("/");
     };
 
     run();
