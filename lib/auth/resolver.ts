@@ -2,7 +2,7 @@ import { supabase } from "@/lib/supabase";
 
 export const resolveUserRoute = async () => {
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return "/";
+  if (!user) return "/select-role";
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -16,5 +16,5 @@ export const resolveUserRoute = async () => {
   if (profile.role === "runner") return "/runner";
   if (profile.role === "client") return "/client";
 
-  return "/";
+  return "/select-role";
 };

@@ -9,6 +9,10 @@ export default function Home() {
   const router = useRouter();
   const [checkingAuth, setCheckingAuth] = useState(true);
 
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+
   useEffect(() => {
     const run = async () => {
       try {
@@ -16,20 +20,19 @@ export default function Home() {
 
         if (data.user) {
           const route = await resolveUserRoute();
+          console.log("ROUTE:", route);
           router.replace(route);
           return;
         }
       } catch (err) {
-        console.error("Auth check failed:", err);
+        console.error(err);
       }
 
-      // Always release UI
       setCheckingAuth(false);
     };
 
     run();
 
-    // 🔥 Fail-safe: never stay stuck
     const timeout = setTimeout(() => {
       setCheckingAuth(false);
     }, 2500);
@@ -37,10 +40,42 @@ export default function Home() {
     return () => clearTimeout(timeout);
   }, [router]);
 
-  const handleAuth = async (intent?: "errand" | "runner") => {
-    const redirectTo = `${window.location.origin}/auth/callback${
-      intent ? `?intent=${intent}` : ""
-    }`;
+  const login = async () => {
+    setLoading(true);
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    setLoading(false);
+
+    if (!error) {
+      router.push("/auth/callback");
+    } else {
+      alert(error.message);
+    }
+  };
+
+  const signup = async () => {
+    setLoading(true);
+
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+    });
+
+    setLoading(false);
+
+    if (!error) {
+      router.push("/auth/callback");
+    } else {
+      alert(error.message);
+    }
+  };
+
+  const googleLogin = async () => {
+    const redirectTo = `${window.location.origin}/auth/callback`;
 
     await supabase.auth.signInWithOAuth({
       provider: "google",
@@ -48,96 +83,82 @@ export default function Home() {
     });
   };
 
-  // ✅ Real loading state (not blank screen)
   if (checkingAuth) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center text-white">
         <div className="flex flex-col items-center gap-4">
           <div className="w-10 h-10 border-4 border-green-500 border-t-transparent rounded-full animate-spin" />
-          <p className="text-sm text-gray-400 tracking-wide">
-            Initializing ERS...
-          </p>
+          <p className="text-sm text-gray-400">Initializing ERS...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <main className="min-h-screen bg-black text-white font-sans selection:bg-green-500/30">
-      {/* HERO */}
-      <section className="relative h-[90vh] flex items-center justify-center overflow-hidden">
-        <div className="absolute inset-0">
-          <img
-            src="/Lagos Nigeria (1).jpeg"
-            alt="Lagos"
-            className="w-full h-full object-cover opacity-25 scale-105"
-          />
-          <div className="absolute inset-0 bg-gradient-to-b from-black/90 via-black/60 to-black" />
+    <main className="min-h-screen bg-black text-white flex items-center justify-center px-6">
+      <div className="w-full max-w-md bg-zinc-900/70 backdrop-blur p-6 rounded-xl border border-white/10">
+        
+        <h1 className="text-2xl font-bold text-center mb-2">
+          ERS
+        </h1>
+
+        <p className="text-center text-gray-400 mb-6 text-sm">
+          Move faster in Lagos
+        </p>
+
+        {/* EMAIL */}
+        <input
+          type="email"
+          placeholder="Email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className="w-full p-3 mb-3 bg-black border border-zinc-700 rounded"
+        />
+
+        {/* PASSWORD */}
+        <input
+          type="password"
+          placeholder="Password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          className="w-full p-3 mb-3 bg-black border border-zinc-700 rounded"
+        />
+
+        {/* LOGIN */}
+        <button
+          onClick={login}
+          disabled={loading}
+          className="w-full bg-green-500 hover:bg-green-400 py-3 rounded text-black font-bold mb-3"
+        >
+          {loading ? "Processing..." : "Login"}
+        </button>
+
+        {/* SIGNUP */}
+        <button
+          onClick={signup}
+          disabled={loading}
+          className="w-full border border-white/10 hover:bg-white/5 py-3 rounded mb-3"
+        >
+          Create Account
+        </button>
+
+        {/* FORGOT */}
+        <p className="text-xs text-gray-500 text-center mb-4 cursor-pointer hover:text-white">
+          Forgot Password?
+        </p>
+
+        <div className="text-center text-xs text-gray-500 mb-4">
+          OR
         </div>
 
-        <div className="relative z-10 text-center px-6 max-w-4xl">
-          <div className="inline-block px-3 py-1 mb-6 border border-green-500/30 rounded-full bg-green-500/10 text-green-500 text-xs font-bold tracking-widest uppercase">
-            Lagos Logistics Engine
-          </div>
-
-          <h1 className="text-5xl md:text-7xl font-black tracking-tight">
-            Move Faster in Lagos
-          </h1>
-
-          <p className="mt-6 text-lg md:text-xl text-gray-400 max-w-xl mx-auto leading-relaxed">
-            ERS connects you to verified runners across the city.
-            <br />
-            <span className="text-white">
-              Send, receive, and execute errands instantly.
-            </span>
-          </p>
-
-          <div className="mt-10 flex flex-col sm:flex-row gap-4 justify-center items-center">
-            <button
-              onClick={() => handleAuth("errand")}
-              className="w-full sm:w-auto bg-green-500 hover:bg-green-400 transition-all px-10 py-4 rounded-xl text-black font-bold shadow-lg shadow-green-500/20 hover:scale-105"
-            >
-              Request Errand
-            </button>
-
-            <button
-              onClick={() => handleAuth("runner")}
-              className="w-full sm:w-auto border border-white/10 hover:bg-white/5 transition-all px-10 py-4 rounded-xl font-medium hover:scale-105"
-            >
-              Become a Runner
-            </button>
-          </div>
-        </div>
-      </section>
-
-      {/* VALUE STRIP */}
-      <section className="py-16 px-6 text-center">
-        <h2 className="text-2xl font-semibold mb-6">
-          Built for speed. Designed for Lagos.
-        </h2>
-
-        <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto text-gray-400">
-          <div>
-            <h3 className="text-white font-bold mb-2">Instant Dispatch</h3>
-            <p>Get a runner assigned in seconds, not minutes.</p>
-          </div>
-
-          <div>
-            <h3 className="text-white font-bold mb-2">Trusted Network</h3>
-            <p>Every runner is tracked and performance-scored.</p>
-          </div>
-
-          <div>
-            <h3 className="text-white font-bold mb-2">Real-Time Tracking</h3>
-            <p>Know exactly where your errand is at all times.</p>
-          </div>
-        </div>
-      </section>
-
-      {/* FOOTER */}
-      <footer className="text-center py-10 text-gray-700 text-xs tracking-widest uppercase">
-        &copy; {new Date().getFullYear()} ERS Core — Powered by Wanky Software
-      </footer>
+        {/* GOOGLE */}
+        <button
+          onClick={googleLogin}
+          className="w-full bg-white text-black py-3 rounded font-semibold"
+        >
+          Continue with Google
+        </button>
+      </div>
     </main>
   );
 }
