@@ -11,18 +11,17 @@ export default function SelectRole() {
 
   const handleRoleSelection = async (role: "client" | "runner") => {
     setLoading(role);
-    
-    const { data: { user } } = await supabase.auth.getUser();
-    
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
     if (!user) {
       router.push("/");
       return;
     }
 
-    const { error } = await supabase
-      .from("profiles")
-      .update({ role })
-      .eq("id", user.id);
+    const { error } = await supabase.from("profiles").update({ role }).eq("id", user.id);
 
     if (error) {
       console.error("Role update failed:", error.message);
@@ -38,7 +37,7 @@ export default function SelectRole() {
     <main className="min-h-screen bg-black text-white flex flex-col items-center justify-center px-6">
       <div className="max-w-2xl w-full text-center">
         <h2 className="text-3xl md:text-5xl font-black tracking-tighter mb-4">
-          IDENTIFY YOUR <span className="text-green-500 text-italic">INTENT</span>
+          IDENTIFY YOUR <span className="text-green-500 italic">INTENT</span>
         </h2>
         <p className="text-gray-500 mb-12 font-mono uppercase tracking-widest text-sm">
           Select your operational mode within the ERS system.
@@ -60,7 +59,9 @@ export default function SelectRole() {
             <p className="text-gray-400 text-sm leading-relaxed">
               I need errands executed. I want access to vetted runners and real-time tracking in Lagos.
             </p>
-            {loading === "client" && <div className="absolute top-4 right-4 animate-spin h-4 w-4 border-2 border-green-500 border-t-transparent rounded-full" />}
+            {loading === "client" && (
+              <div className="absolute top-4 right-4 animate-spin h-4 w-4 border-2 border-green-500 border-t-transparent rounded-full" />
+            )}
           </button>
 
           {/* RUNNER OPTION */}
@@ -78,7 +79,9 @@ export default function SelectRole() {
             <p className="text-gray-400 text-sm leading-relaxed">
               I move the city. I want to earn by fulfilling tasks with discipline and speed.
             </p>
-            {loading === "runner" && <div className="absolute top-4 right-4 animate-spin h-4 w-4 border-2 border-green-500 border-t-transparent rounded-full" />}
+            {loading === "runner" && (
+              <div className="absolute top-4 right-4 animate-spin h-4 w-4 border-2 border-green-500 border-t-transparent rounded-full" />
+            )}
           </button>
         </div>
       </div>
